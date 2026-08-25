@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.6.0-mockup";
+const APP_VERSION = "0.6.1-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const NATURE_VIDEO_SECONDS = 6 * 60;

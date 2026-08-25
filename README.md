@@ -6,8 +6,8 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 
 ## What is implemented
 
-- Configurable onset-to-onset pacing, initially 4, 3, 2, and 1 seconds.
-- Separately configurable digit display duration, initially 0.75 seconds.
+- Configurable onset-to-onset pacing, initially 4, 3, and 2 seconds.
+- Separately configurable digit display duration, initially 1 second.
 - A configurable slow practice block, initially 5.0-second pacing with a 1.0-second digit display, immediately before the experimental PVSAT conditions.
 - Separate duration controls for every test, initially 3 minutes. Complete attempts continue until the configured minimum time is reached or surpassed.
 - Thirty-second Rest blocks by default, inserted between testing conditions.
