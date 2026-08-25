@@ -6,13 +6,17 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 
 ## What is implemented
 
-- Configurable onset-to-onset pacing, initially 3.0, 2.0, and 1.5 seconds.
+- Configurable onset-to-onset pacing, initially 4, 3, 2, and 1 seconds.
 - Separately configurable digit display duration, initially 0.75 seconds.
-- A configurable slow practice block, initially 4.0-second pacing with a 1.0-second digit display, before the first Rest block.
-- Rest → PVSAT → Rest sequencing with fixed, reversed, rotated, or seeded-random pacing order.
+- A configurable slow practice block, initially 5.0-second pacing with a 1.0-second digit display, immediately before the experimental PVSAT conditions.
+- Separate duration controls for every test, initially 3 minutes. Complete attempts continue until the configured minimum time is reached or surpassed.
+- Thirty-second Rest blocks by default, inserted between testing conditions.
+- Convenient arrow-button reordering of the selected cognitive tests, plus fixed, reversed, rotated, or seeded-random PVSAT pacing order.
+- Optional muted six-minute nature-video blocks before and after the cognitive battery, with shortened versions in demo mode.
 - A short demo mode and optional demo-only answer feedback.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
-- Functioning touchscreen demos for Stroop, Trail Making A/B, Corsi spatial span, and simple reaction time.
+- Functioning touchscreen demos for Stroop, repeated Trail Making A/B attempts, Corsi spatial span, and simple reaction time.
+- Corsi returns to its starting span after an incorrect sequence and continues until the configured minimum duration is met.
 - Automatic Rest blocks between selected testing conditions.
 - Absolute stimulus scheduling: a response never starts or delays the next digit timer.
 - Trial-level CSV export and full JSON export containing configuration, trial rows, and a session/event log.
@@ -34,7 +38,7 @@ Then open `http://localhost:8080`.
 
 Place these files at the root of a GitHub repository, then enable GitHub Pages for the repository branch and root folder. The app is entirely static and does not require a build step or server-side storage.
 
-The jsPsych version is pinned to `8.3.0` on unpkg. For a production deployment, consider vendoring the exact dependency files into the repository so the task does not depend on a third-party CDN during data collection.
+The jsPsych version is pinned to `8.3.0` on unpkg. The default nature block loops the CC0 flower footage hosted in MDN's interactive examples. For a production deployment, vendor the exact dependency and approved study video files so data collection does not depend on third-party CDNs.
 
 ## Export structure
 

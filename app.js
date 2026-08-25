@@ -1,7 +1,18 @@
 "use strict";
 
-const APP_VERSION = "0.4.1-mockup";
+const APP_VERSION = "0.5.0-mockup";
 const JSPsych_VERSION = "8.3.0";
+const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+const NATURE_VIDEO_SECONDS = 6 * 60;
+const DEFAULT_TASK_ORDER = ["pvsat", "stroop", "trail_a", "trail_b", "corsi", "reaction"];
+const TASK_DEFINITIONS = {
+  pvsat: { label: "Modified PVSAT", condition: "PVSAT", detail: "Serial addition" },
+  stroop: { label: "Stroop", condition: "Stroop", detail: "Executive inhibition" },
+  trail_a: { label: "Trail Making A", condition: "Trail Making A", detail: "Visual attention and speed" },
+  trail_b: { label: "Trail Making B", condition: "Trail Making B", detail: "Executive set-shifting" },
+  corsi: { label: "Corsi Spatial Span", condition: "Corsi Spatial Span", detail: "Visuospatial working memory" },
+  reaction: { label: "Simple Reaction Time", condition: "Simple Reaction Time", detail: "Low-load motor control" },
+};
 // The jsPsych 8 browser bundle exposes plugin parameter types on the
 // `jsPsychModule` namespace; `initJsPsych()` returns the experiment instance.
 const ParameterType = jsPsychModule.ParameterType;
@@ -10,14 +21,13 @@ const els = {
   setupRoot: document.querySelector("#setup-root"),
   experimentRoot: document.querySelector("#experiment-root"),
   form: document.querySelector("#setup-form"),
-  studyId: document.querySelector("#study-id"),
+  studyName: document.querySelector("#study-name"),
   participantId: document.querySelector("#participant-id"),
   sessionLabel: document.querySelector("#session-label"),
   studyCondition: document.querySelector("#study-condition"),
   pacingValues: document.querySelector("#pacing-values"),
   stimulusDuration: document.querySelector("#stimulus-duration"),
   restDuration: document.querySelector("#rest-duration"),
-  pvsatDuration: document.querySelector("#pvsat-duration"),
   practicePace: document.querySelector("#practice-pace"),
   practiceStimulusDuration: document.querySelector("#practice-stimulus-duration"),
   practiceDuration: document.querySelector("#practice-duration"),
@@ -25,6 +35,7 @@ const els = {
   orderMethod: document.querySelector("#order-method"),
   demoMode: document.querySelector("#demo-mode"),
   demoFeedback: document.querySelector("#demo-feedback"),
+  natureVideoEnabled: document.querySelector("#nature-video-enabled"),
   taskPvsat: document.querySelector("#task-pvsat"),
   taskStroop: document.querySelector("#task-stroop"),
   taskTrailA: document.querySelector("#task-trail-a"),
@@ -32,10 +43,19 @@ const els = {
   taskCorsi: document.querySelector("#task-corsi"),
   taskReaction: document.querySelector("#task-reaction"),
   pvsatChoiceCount: document.querySelector("#pvsat-choice-count"),
+  durationPvsat: document.querySelector("#duration-pvsat"),
+  durationStroop: document.querySelector("#duration-stroop"),
+  durationTrailA: document.querySelector("#duration-trail-a"),
+  durationTrailB: document.querySelector("#duration-trail-b"),
+  durationCorsi: document.querySelector("#duration-corsi"),
+  durationReaction: document.querySelector("#duration-reaction"),
+  taskOrder: document.querySelector("#task-order"),
   blockPreview: document.querySelector("#block-preview"),
   estimatedDuration: document.querySelector("#estimated-duration"),
   setupError: document.querySelector("#setup-error"),
 };
+
+let taskOrder = [...DEFAULT_TASK_ORDER];
 
 const sessionState = {
   config: null,
@@ -96,29 +116,36 @@ function orderedPaces(paces, method, seed) {
 }
 
 function readConfig() {
-  const studyId = els.studyId.value.trim();
+  const studyName = els.studyName.value.trim();
   const participantId = els.participantId.value.trim();
   const sessionLabel = els.sessionLabel.value.trim();
   const studyCondition = els.studyCondition.value.trim();
-  if (!studyId || !participantId || !sessionLabel || !studyCondition) {
+  if (!studyName || !participantId || !sessionLabel || !studyCondition) {
     throw new Error("Complete all four study identifier fields.");
   }
 
   const pacingSeconds = parsePacingValues(els.pacingValues.value);
   const stimulusSeconds = Number(els.stimulusDuration.value);
   const configuredRestSeconds = Number(els.restDuration.value);
-  const configuredPvsatSeconds = Number(els.pvsatDuration.value);
   const practicePaceSeconds = Number(els.practicePace.value);
   const practiceStimulusSeconds = Number(els.practiceStimulusDuration.value);
   const configuredPracticeSeconds = Number(els.practiceDuration.value);
+  const configuredTaskDurationsSeconds = {
+    pvsat: Number(els.durationPvsat.value) * 60,
+    stroop: Number(els.durationStroop.value) * 60,
+    trail_a: Number(els.durationTrailA.value) * 60,
+    trail_b: Number(els.durationTrailB.value) * 60,
+    corsi: Number(els.durationCorsi.value) * 60,
+    reaction: Number(els.durationReaction.value) * 60,
+  };
   if (
     !(
       stimulusSeconds > 0 &&
       configuredRestSeconds > 0 &&
-      configuredPvsatSeconds > 0 &&
       practicePaceSeconds > 0 &&
       practiceStimulusSeconds > 0 &&
-      configuredPracticeSeconds > 0
+      configuredPracticeSeconds > 0 &&
+      Object.values(configuredTaskDurationsSeconds).every((duration) => duration > 0)
     )
   ) {
     throw new Error("All durations must be greater than zero.");
@@ -130,12 +157,16 @@ function readConfig() {
     throw new Error("Practice digit display duration must be shorter than practice pacing.");
   }
 
-  const seedText = `${studyId}|${participantId}|${sessionLabel}`;
+  const seedText = `${studyName}|${participantId}|${sessionLabel}`;
   const seed = hashString(seedText);
   const demoMode = els.demoMode.checked;
   const restSeconds = demoMode ? 5 : configuredRestSeconds;
-  const pvsatSeconds = demoMode ? 15 : configuredPvsatSeconds;
   const practiceSeconds = demoMode ? 20 : configuredPracticeSeconds;
+  const taskDurationsSeconds = Object.fromEntries(
+    Object.entries(configuredTaskDurationsSeconds).map(([key, duration]) => [key, demoMode ? 15 : duration]),
+  );
+  const natureVideoEnabled = els.natureVideoEnabled.checked;
+  const natureVideoSeconds = demoMode ? 10 : NATURE_VIDEO_SECONDS;
   const paces = orderedPaces(pacingSeconds, els.orderMethod.value, seed);
   const practiceEnabled = els.practiceEnabled.checked;
   const pvsatChoiceCount = Number(els.pvsatChoiceCount.value);
@@ -150,53 +181,74 @@ function readConfig() {
   if (!Object.values(selectedTasks).some(Boolean)) {
     throw new Error("Select at least one testing option.");
   }
+  const selectedTaskOrder = taskOrder.filter((key) => selectedTasks[key]);
   const blocks = [];
 
-  if (selectedTasks.pvsat && practiceEnabled) {
+  if (natureVideoEnabled) {
     blocks.push({
-      type: "practice",
-      task: "pvsat",
-      practice: true,
-      durationSeconds: practiceSeconds,
-      condition: `Practice-${practicePaceSeconds.toFixed(2)}s`,
-      paceSeconds: practicePaceSeconds,
-      stimulusSeconds: practiceStimulusSeconds,
+      type: "nature",
+      condition: "Nature video · Before battery",
+      durationSeconds: natureVideoSeconds,
+      videoPosition: "before",
+      videoSource: NATURE_VIDEO_SOURCE,
     });
   }
 
   blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
 
-  if (selectedTasks.pvsat) {
-    paces.forEach((paceSeconds) => {
-      blocks.push({
-        type: "pvsat",
-        task: "pvsat",
-        durationSeconds: pvsatSeconds,
-        condition: `PVSAT-${paceSeconds.toFixed(2)}s`,
-        paceSeconds,
+  selectedTaskOrder.forEach((taskKey) => {
+    if (taskKey === "pvsat") {
+      if (practiceEnabled) {
+        blocks.push({
+          type: "practice",
+          task: "pvsat",
+          practice: true,
+          durationSeconds: practiceSeconds,
+          condition: `Practice-${practicePaceSeconds.toFixed(2)}s`,
+          paceSeconds: practicePaceSeconds,
+          stimulusSeconds: practiceStimulusSeconds,
+        });
+        blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
+      }
+      paces.forEach((paceSeconds) => {
+        blocks.push({
+          type: "pvsat",
+          task: "pvsat",
+          durationSeconds: taskDurationsSeconds.pvsat,
+          minimumDuration: true,
+          condition: `PVSAT-${paceSeconds.toFixed(2)}s`,
+          paceSeconds,
+        });
+        blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
       });
-      blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
+      return;
+    }
+
+    const task = TASK_DEFINITIONS[taskKey];
+    blocks.push({
+      type: taskKey,
+      task: taskKey,
+      condition: task.condition,
+      durationSeconds: taskDurationsSeconds[taskKey],
+      minimumDuration: true,
     });
-  }
-
-  const additionalBlocks = [
-    { key: "stroop", type: "stroop", condition: "Stroop", durationSeconds: demoMode ? 15 : 60 },
-    { key: "trail_a", type: "trail_a", condition: "Trail Making A", durationSeconds: demoMode ? 30 : 90 },
-    { key: "trail_b", type: "trail_b", condition: "Trail Making B", durationSeconds: demoMode ? 35 : 120 },
-    { key: "corsi", type: "corsi", condition: "Corsi Spatial Span", durationSeconds: demoMode ? 30 : 75 },
-    { key: "reaction", type: "reaction", condition: "Simple Reaction Time", durationSeconds: demoMode ? 20 : 60 },
-  ];
-
-  additionalBlocks.forEach((block) => {
-    if (!selectedTasks[block.key]) return;
-    blocks.push({ ...block, task: block.key });
     blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
   });
+
+  if (natureVideoEnabled) {
+    blocks.push({
+      type: "nature",
+      condition: "Nature video · After battery",
+      durationSeconds: natureVideoSeconds,
+      videoPosition: "after",
+      videoSource: NATURE_VIDEO_SOURCE,
+    });
+  }
 
   return {
     appVersion: APP_VERSION,
     jsPsychVersion: JSPsych_VERSION,
-    studyId,
+    studyName,
     participantId,
     sessionLabel,
     studyCondition,
@@ -210,10 +262,15 @@ function readConfig() {
     practiceSeconds,
     pvsatChoiceCount,
     selectedTasks,
+    selectedTaskOrder,
+    configuredTaskDurationsSeconds,
+    taskDurationsSeconds,
     configuredRestSeconds,
-    configuredPvsatSeconds,
     restSeconds,
-    pvsatSeconds,
+    pvsatSeconds: taskDurationsSeconds.pvsat,
+    natureVideoEnabled,
+    natureVideoSeconds,
+    natureVideoSource: NATURE_VIDEO_SOURCE,
     orderMethod: els.orderMethod.value,
     demoMode,
     demoFeedback: demoMode && els.demoFeedback.checked,
@@ -221,6 +278,53 @@ function readConfig() {
     seedText,
     blocks,
   };
+}
+
+function selectedTaskKeys() {
+  const taskCheckboxes = {
+    pvsat: els.taskPvsat,
+    stroop: els.taskStroop,
+    trail_a: els.taskTrailA,
+    trail_b: els.taskTrailB,
+    corsi: els.taskCorsi,
+    reaction: els.taskReaction,
+  };
+  return DEFAULT_TASK_ORDER.filter((key) => taskCheckboxes[key].checked);
+}
+
+function syncTaskOrder() {
+  const selected = selectedTaskKeys();
+  taskOrder = taskOrder.filter((key) => selected.includes(key));
+  selected.forEach((key) => {
+    if (!taskOrder.includes(key)) taskOrder.push(key);
+  });
+}
+
+function renderTaskOrder() {
+  syncTaskOrder();
+  if (!taskOrder.length) {
+    els.taskOrder.innerHTML = '<li class="task-order-empty">Select a testing option to build the sequence.</li>';
+    return;
+  }
+  els.taskOrder.innerHTML = taskOrder
+    .map(
+      (key, index) => `<li data-task="${key}">
+        <span class="task-order-number">${index + 1}</span>
+        <strong>${TASK_DEFINITIONS[key].label}</strong>
+        <span class="task-order-actions">
+          <button type="button" data-direction="-1" aria-label="Move ${TASK_DEFINITIONS[key].label} earlier" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" data-direction="1" aria-label="Move ${TASK_DEFINITIONS[key].label} later" ${index === taskOrder.length - 1 ? "disabled" : ""}>↓</button>
+        </span>
+      </li>`,
+    )
+    .join("");
+}
+
+function moveTask(taskKey, direction) {
+  const index = taskOrder.indexOf(taskKey);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= taskOrder.length) return;
+  [taskOrder[index], taskOrder[target]] = [taskOrder[target], taskOrder[index]];
 }
 
 function durationLabel(seconds) {
@@ -232,27 +336,33 @@ function durationLabel(seconds) {
 
 function updatePreview() {
   try {
+    renderTaskOrder();
     const config = readConfig();
     els.setupError.textContent = "";
     els.blockPreview.innerHTML = config.blocks
       .map((block) => {
         const label = block.type === "rest" ? "Rest" : `${block.condition}`;
         const details = {
+          nature: config.demoMode
+            ? (block.videoPosition === "before" ? "Short demo baseline viewing" : "Short demo recovery viewing")
+            : (block.videoPosition === "before" ? "Six-minute baseline viewing" : "Six-minute recovery viewing"),
           rest: "Natural breathing",
           practice: `Guided ${config.pvsatChoiceCount}-choice practice`,
           pvsat: `${config.pvsatChoiceCount}-choice serial addition`,
           stroop: "Executive inhibition",
           trail_a: "Visual attention and speed",
           trail_b: "Executive set-shifting",
-          corsi: "Visuospatial working memory",
+          corsi: "Visuospatial working memory · resets after errors",
           reaction: "Low-load motor control",
         };
         const detail = details[block.type];
-        return `<li class="${block.type}-block"><span><strong>${label}</strong><small>${detail}</small></span><time>${durationLabel(block.durationSeconds)}</time></li>`;
+        const duration = `${block.minimumDuration ? "≥ " : ""}${durationLabel(block.durationSeconds)}`;
+        return `<li class="${block.type}-block"><span><strong>${label}</strong><small>${detail}</small></span><time>${duration}</time></li>`;
       })
       .join("");
     const totalSeconds = config.blocks.reduce((sum, block) => sum + block.durationSeconds, 0);
-    els.estimatedDuration.textContent = durationLabel(totalSeconds);
+    const hasMinimumBlocks = config.blocks.some((block) => block.minimumDuration);
+    els.estimatedDuration.textContent = `${hasMinimumBlocks ? "≥ " : ""}${durationLabel(totalSeconds)}`;
   } catch (error) {
     els.setupError.textContent = error.message;
   }
@@ -375,6 +485,8 @@ class FixedClockBlockPlugin {
   trial(displayElement, trial) {
     if (trial.block.type === "rest") {
       this.runRest(displayElement, trial);
+    } else if (trial.block.type === "nature") {
+      this.runNature(displayElement, trial);
     } else {
       this.runPvsat(displayElement, trial);
     }
@@ -421,13 +533,124 @@ class FixedClockBlockPlugin {
     });
   }
 
+  runNature(displayElement, trial) {
+    const { block, blockNumber, totalBlocks } = trial;
+    displayElement.innerHTML = baseParticipantScreen(blockNumber, totalBlocks, block.condition);
+    const slot = displayElement.querySelector(".screen-slot");
+    slot.className = "screen-slot nature-screen";
+    slot.innerHTML = `
+      <div class="nature-content">
+        <video id="nature-video" class="nature-video" muted loop playsinline preload="auto" aria-label="Nature video">
+          <source src="${block.videoSource}" type="video/mp4" />
+        </video>
+        <div id="nature-fallback" class="nature-fallback" hidden aria-label="Quiet nature scene">
+          <span class="nature-sun"></span><span class="nature-hill nature-hill--far"></span><span class="nature-hill nature-hill--near"></span>
+        </div>
+        <button id="nature-start" class="secondary-button nature-start" type="button" hidden>Start nature video</button>
+        <p id="nature-status">Please watch the video, remain still, and breathe naturally.</p>
+      </div>`;
+
+    const video = slot.querySelector("#nature-video");
+    const fallback = slot.querySelector("#nature-fallback");
+    const startButton = slot.querySelector("#nature-start");
+    const status = slot.querySelector("#nature-status");
+    let started = false;
+    let finished = false;
+    let startPerformance = null;
+    let startRelative = null;
+    let playbackMode = "video";
+
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      video.pause();
+      const actualDuration = performance.now() - startPerformance;
+      logEvent("video_playback_offset", {
+        block: blockNumber,
+        condition: block.condition,
+        video_position: block.videoPosition,
+        playback_mode: playbackMode,
+      });
+      logEvent("block_offset", {
+        block: blockNumber,
+        block_type: "nature",
+        condition: block.condition,
+        video_position: block.videoPosition,
+        scheduled_duration_ms: block.durationSeconds * 1000,
+        actual_duration_ms: round(actualDuration),
+        playback_mode: playbackMode,
+      });
+      this.jsPsych.finishTrial({
+        record_type: "block_summary",
+        block: blockNumber,
+        block_type: "nature",
+        condition: block.condition,
+        video_position: block.videoPosition,
+        scheduled_duration_ms: block.durationSeconds * 1000,
+        actual_duration_ms: round(actualDuration),
+        playback_mode: playbackMode,
+      });
+    };
+
+    const startClock = (mode = "video") => {
+      if (started) return;
+      started = true;
+      playbackMode = mode;
+      startButton.hidden = true;
+      startPerformance = performance.now();
+      startRelative = relativeNow();
+      logEvent("block_onset", {
+        block: blockNumber,
+        block_type: "nature",
+        condition: block.condition,
+        video_position: block.videoPosition,
+        scheduled_relative_ms: round(startRelative),
+        playback_mode: playbackMode,
+      });
+      logEvent("video_playback_onset", {
+        block: blockNumber,
+        condition: block.condition,
+        video_position: block.videoPosition,
+        playback_mode: playbackMode,
+      });
+      waitUntil(startPerformance + block.durationSeconds * 1000, finish);
+    };
+
+    video.addEventListener("playing", () => startClock("video"), { once: true });
+    video.addEventListener(
+      "error",
+      () => {
+        video.hidden = true;
+        fallback.hidden = false;
+        status.textContent = "Nature footage was unavailable; continue watching the quiet nature scene.";
+        logEvent("video_playback_error", { block: blockNumber, condition: block.condition });
+        startClock("fallback");
+      },
+      { once: true },
+    );
+    startButton.addEventListener("click", () => {
+      video.play().catch(() => {
+        startButton.hidden = false;
+      });
+    });
+
+    video.play().catch(() => {
+      startButton.hidden = false;
+      status.textContent = "Tap Start nature video to begin this block.";
+    });
+  }
+
   runPvsat(displayElement, trial) {
     const { block, blockNumber, totalBlocks } = trial;
     const config = sessionState.config;
     const paceMs = block.paceSeconds * 1000;
     const stimulusMs = (block.stimulusSeconds ?? config.stimulusSeconds) * 1000;
-    const durationMs = block.durationSeconds * 1000;
-    const digitCount = Math.max(2, Math.floor((durationMs - 1) / paceMs) + 1);
+    const targetDurationMs = block.durationSeconds * 1000;
+    // Begin paced pairs through the configured minimum and allow the final
+    // pair its complete response interval. The stimulus clock never waits for
+    // a response, so the scheduled duration can exceed the target by one pace.
+    const digitCount = Math.max(2, Math.floor(targetDurationMs / paceMs) + 1);
+    const scheduledDurationMs = digitCount * paceMs;
     const blockRandom = mulberry32((config.seed + blockNumber * 9973) >>> 0);
     const digits = generateDigits(digitCount, blockRandom);
     const optionCount = config.pvsatChoiceCount;
@@ -510,6 +733,8 @@ class FixedClockBlockPlugin {
       stimulus_duration_ms: stimulusMs,
       practice: Boolean(block.practice),
       scheduled_relative_ms: round(blockStartRelative),
+      target_duration_ms: targetDurationMs,
+      scheduled_duration_ms: scheduledDurationMs,
     });
 
     const presentDigit = (index) => {
@@ -563,7 +788,7 @@ class FixedClockBlockPlugin {
         record_type: "pvsat_trial",
         app_version: APP_VERSION,
         jspsych_version: JSPsych_VERSION,
-        study_id: config.studyId,
+        study_name: config.studyName,
         participant_id: config.participantId,
         session_label: config.sessionLabel,
         study_condition: config.studyCondition,
@@ -617,7 +842,7 @@ class FixedClockBlockPlugin {
       waitUntil(blockStartPerformance + index * paceMs, () => presentDigit(index));
     });
 
-    waitUntil(blockStartPerformance + durationMs, () => {
+    waitUntil(blockStartPerformance + scheduledDurationMs, () => {
       finalizeRecord();
       if (digitHideTimer) window.clearTimeout(digitHideTimer);
       responseArea.removeEventListener("pointerdown", handleAnswer);
@@ -629,7 +854,8 @@ class FixedClockBlockPlugin {
         condition: block.condition,
         pacing_ms: paceMs,
         practice: Boolean(block.practice),
-        scheduled_duration_ms: durationMs,
+        target_duration_ms: targetDurationMs,
+        scheduled_duration_ms: scheduledDurationMs,
         actual_duration_ms: round(actualDuration),
         completed_trials: completedPairs,
       });
@@ -640,7 +866,8 @@ class FixedClockBlockPlugin {
         condition: block.condition,
         pacing_ms: paceMs,
         practice: Boolean(block.practice),
-        scheduled_duration_ms: durationMs,
+        target_duration_ms: targetDurationMs,
+        scheduled_duration_ms: scheduledDurationMs,
         actual_duration_ms: round(actualDuration),
         completed_trials: completedPairs,
       });
@@ -654,7 +881,7 @@ function taskRowBase(block, blockNumber, blockTrialNumber, recordType) {
     record_type: recordType,
     app_version: APP_VERSION,
     jspsych_version: JSPsych_VERSION,
-    study_id: config.studyId,
+    study_name: config.studyName,
     participant_id: config.participantId,
     session_label: config.sessionLabel,
     study_condition: config.studyCondition,
@@ -713,6 +940,7 @@ class BatteryTaskPlugin {
       task: block.task,
       condition: block.condition,
       scheduled_relative_ms: round(startRelative),
+      target_duration_ms: block.durationSeconds * 1000,
       ...extra,
     });
     return { startPerformance, startRelative };
@@ -720,12 +948,15 @@ class BatteryTaskPlugin {
 
   finishTaskBlock(block, blockNumber, clock, summary = {}) {
     const actualDuration = performance.now() - clock.startPerformance;
+    const targetDuration = block.durationSeconds * 1000;
     logEvent("block_offset", {
       block: blockNumber,
       block_type: block.type,
       task: block.task,
       condition: block.condition,
+      target_duration_ms: targetDuration,
       actual_duration_ms: round(actualDuration),
+      surpassed_target: actualDuration >= targetDuration,
       ...summary,
     });
     this.jsPsych.finishTrial({
@@ -734,7 +965,9 @@ class BatteryTaskPlugin {
       block_type: block.type,
       task: block.task,
       condition: block.condition,
+      target_duration_ms: targetDuration,
       actual_duration_ms: round(actualDuration),
+      surpassed_target: actualDuration >= targetDuration,
       ...summary,
     });
   }
@@ -844,7 +1077,6 @@ class BatteryTaskPlugin {
     };
 
     choicesElement.addEventListener("pointerdown", respond);
-    window.setTimeout(finish, block.durationSeconds * 1000);
     beginTrial();
   }
 
@@ -859,7 +1091,6 @@ class BatteryTaskPlugin {
       { x: 12, y: 75 }, { x: 38, y: 68 }, { x: 64, y: 79 }, { x: 82, y: 88 },
     ];
     const random = mulberry32((sessionState.config.seed + blockNumber * 2909) >>> 0);
-    const shuffledPositions = shuffled(positions, random);
     const clock = this.startTaskBlock(block, blockNumber, { alternating });
     const slot = this.prepareScreen(
       displayElement,
@@ -867,14 +1098,15 @@ class BatteryTaskPlugin {
       totalBlocks,
       block.condition,
       "trail-stage",
-      `<div class="task-instruction"><strong>${alternating ? "Alternate numbers and letters" : "Connect the numbers in order"}</strong><span>${alternating ? "1 → A → 2 → B …" : "1 → 2 → 3 …"}</span></div>
+      `<div class="task-instruction"><strong>${alternating ? "Alternate numbers and letters" : "Connect the numbers in order"}</strong><span id="trail-attempt-status">${alternating ? "1 → A → 2 → B …" : "1 → 2 → 3 …"}</span></div>
        <div id="trail-board" class="trail-board" aria-label="${block.condition} board">
          <div id="trail-lines" class="trail-lines" aria-hidden="true"></div>
-         ${labels.map((label, index) => `<button type="button" class="trail-node" data-index="${index}" style="left:${shuffledPositions[index].x}%;top:${shuffledPositions[index].y}%">${label}</button>`).join("")}
        </div>`,
     );
     const board = slot.querySelector("#trail-board");
-    const lineLayer = slot.querySelector("#trail-lines");
+    const attemptStatus = slot.querySelector("#trail-attempt-status");
+    let attemptNumber = 0;
+    let completedAttempts = 0;
     let targetIndex = 0;
     let tapIndex = 0;
     let errors = 0;
@@ -885,7 +1117,13 @@ class BatteryTaskPlugin {
     const finish = (completed) => {
       if (finished) return;
       finished = true;
-      this.finishTaskBlock(block, blockNumber, clock, { completed, correct_targets: targetIndex, errors });
+      this.finishTaskBlock(block, blockNumber, clock, {
+        completed,
+        completed_attempts: completedAttempts,
+        final_attempt_number: attemptNumber,
+        correct_targets: targetIndex,
+        errors,
+      });
     };
 
     const drawLine = (from, to) => {
@@ -904,7 +1142,22 @@ class BatteryTaskPlugin {
       line.style.left = `${x1}px`;
       line.style.top = `${y1}px`;
       line.style.transform = `rotate(${angle}deg)`;
-      lineLayer.appendChild(line);
+      board.querySelector("#trail-lines").appendChild(line);
+    };
+
+    const beginAttempt = () => {
+      if (finished) return;
+      if (attemptNumber > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
+        finish(true);
+        return;
+      }
+      attemptNumber += 1;
+      targetIndex = 0;
+      lastCorrectElement = null;
+      const attemptPositions = shuffled(positions, random);
+      board.innerHTML = `<div id="trail-lines" class="trail-lines" aria-hidden="true"></div>
+        ${labels.map((label, index) => `<button type="button" class="trail-node" data-index="${index}" style="left:${attemptPositions[index].x}%;top:${attemptPositions[index].y}%">${label}</button>`).join("")}`;
+      attemptStatus.textContent = `Attempt ${attemptNumber} · ${alternating ? "1 → A → 2 → B …" : "1 → 2 → 3 …"}`;
     };
 
     board.addEventListener("pointerdown", (event) => {
@@ -917,6 +1170,8 @@ class BatteryTaskPlugin {
       if (!correct) errors += 1;
       saveTaskRow({
         ...taskRowBase(block, blockNumber, tapIndex, alternating ? "trail_b_tap" : "trail_a_tap"),
+        attempt_number: attemptNumber,
+        attempt_target_number: targetIndex + 1,
         expected_target: labels[targetIndex],
         selected_target: labels[selectedIndex],
         correct,
@@ -936,10 +1191,14 @@ class BatteryTaskPlugin {
       node.classList.add("is-complete");
       node.disabled = true;
       targetIndex += 1;
-      if (targetIndex === labels.length) window.setTimeout(() => finish(true), 300);
+      if (targetIndex === labels.length) {
+        completedAttempts += 1;
+        attemptStatus.textContent = `Attempt ${attemptNumber} complete`;
+        window.setTimeout(beginAttempt, 400);
+      }
     });
 
-    window.setTimeout(() => finish(false), block.durationSeconds * 1000);
+    beginAttempt();
   }
 
   runCorsi(displayElement, trial) {
@@ -960,6 +1219,9 @@ class BatteryTaskPlugin {
     const grid = slot.querySelector("#corsi-grid");
     const prompt = slot.querySelector("#corsi-prompt");
     let sequenceTrial = 0;
+    let spanIndex = 0;
+    let correctSequences = 0;
+    let errors = 0;
     let active = null;
     let accepting = false;
     let finished = false;
@@ -969,16 +1231,21 @@ class BatteryTaskPlugin {
       if (finished) return;
       finished = true;
       accepting = false;
-      this.finishTaskBlock(block, blockNumber, clock, { completed_sequences: sequenceTrial });
+      this.finishTaskBlock(block, blockNumber, clock, {
+        completed_sequences: sequenceTrial,
+        correct_sequences: correctSequences,
+        errors,
+        final_span_length: spanLengths[spanIndex],
+      });
     };
 
     const presentNext = async () => {
       if (finished) return;
-      if (sequenceTrial >= spanLengths.length) {
+      if (sequenceTrial > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish();
         return;
       }
-      const spanLength = spanLengths[sequenceTrial];
+      const spanLength = spanLengths[spanIndex];
       const sequence = [];
       while (sequence.length < spanLength) {
         const candidate = Math.floor(random() * 9);
@@ -1014,6 +1281,7 @@ class BatteryTaskPlugin {
       const nowRelative = relativeNow();
       saveTaskRow({
         ...taskRowBase(block, blockNumber, sequenceTrial + 1, "corsi_sequence"),
+        span_level_index: spanIndex + 1,
         span_length: active.sequence.length,
         presented_sequence: JSON.stringify(active.sequence.map((value) => value + 1)),
         selected_sequence: JSON.stringify(active.responses.map((value) => value + 1)),
@@ -1021,19 +1289,25 @@ class BatteryTaskPlugin {
         rt_ms: round(nowRelative - active.responseStart),
         response_relative_ms: round(nowRelative),
       });
-      prompt.textContent = correct ? "Correct" : "Sequence recorded";
+      if (correct) {
+        correctSequences += 1;
+        spanIndex = Math.min(spanIndex + 1, spanLengths.length - 1);
+        prompt.textContent = "Correct";
+      } else {
+        errors += 1;
+        spanIndex = 0;
+        prompt.textContent = `Incorrect — restarting at ${spanLengths[0]} locations`;
+      }
       sequenceTrial += 1;
       window.setTimeout(presentNext, 600);
     });
 
-    window.setTimeout(finish, block.durationSeconds * 1000);
     presentNext();
   }
 
   runReaction(displayElement, trial) {
     const { block, blockNumber, totalBlocks } = trial;
     const config = sessionState.config;
-    const trialTarget = config.demoMode ? 6 : 20;
     const random = mulberry32((config.seed + blockNumber * 4519) >>> 0);
     const clock = this.startTaskBlock(block, blockNumber);
     const slot = this.prepareScreen(
@@ -1063,7 +1337,7 @@ class BatteryTaskPlugin {
 
     const beginTrial = () => {
       if (finished) return;
-      if (trialIndex >= trialTarget) {
+      if (trialIndex > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish();
         return;
       }
@@ -1166,14 +1440,14 @@ function downloadText(filename, text, mimeType) {
 
 function exportBaseName() {
   const config = sessionState.config;
-  return [config.studyId, config.participantId, config.sessionLabel, sessionState.clock.sessionId]
+  return [config.studyName, config.participantId, config.sessionLabel, sessionState.clock.sessionId]
     .map(sanitizeFilename)
     .join("_");
 }
 
 function exportJson() {
   const payload = {
-    schema_version: "0.1.0",
+    schema_version: "0.2.0",
     app_version: APP_VERSION,
     jspsych_version: JSPsych_VERSION,
     session_id: sessionState.clock.sessionId,
@@ -1247,7 +1521,7 @@ function beginExperiment(config) {
   sessionState.running = true;
   logEvent("session_start", {
     session_id: sessionState.clock.sessionId,
-    study_id: config.studyId,
+    study_name: config.studyName,
     participant_id: config.participantId,
     session_label: config.sessionLabel,
     study_condition: config.studyCondition,
@@ -1262,7 +1536,7 @@ function beginExperiment(config) {
     },
   });
 
-  const fixedClockTypes = new Set(["rest", "practice", "pvsat"]);
+  const fixedClockTypes = new Set(["nature", "rest", "practice", "pvsat"]);
   const timeline = config.blocks.map((block, index) => ({
     type: fixedClockTypes.has(block.type) ? FixedClockBlockPlugin : BatteryTaskPlugin,
     block,
@@ -1304,6 +1578,13 @@ function showReadyScreen(config) {
 
 els.form.addEventListener("input", updatePreview);
 els.form.addEventListener("change", updatePreview);
+els.taskOrder.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-direction]");
+  const item = event.target.closest("li[data-task]");
+  if (!button || !item) return;
+  moveTask(item.dataset.task, Number(button.dataset.direction));
+  updatePreview();
+});
 els.form.addEventListener("submit", (event) => {
   event.preventDefault();
   try {
@@ -1315,4 +1596,5 @@ els.form.addEventListener("submit", (event) => {
   }
 });
 
+renderTaskOrder();
 updatePreview();

@@ -40,8 +40,8 @@
           </div>
           <div class="field-grid field-grid--two">
             <label>
-              <span>Study ID</span>
-              <input id="study-id" name="studyId" value="RESP-PVSAT" required autocomplete="off" />
+              <span>Study name</span>
+              <input id="study-name" name="studyName" value="Respiratory Cognitive Load" required autocomplete="off" />
             </label>
             <label>
               <span>Participant ID</span>
@@ -68,7 +68,7 @@
           <div class="field-grid field-grid--two">
             <label>
               <span>Pacing intervals (seconds)</span>
-              <input id="pacing-values" name="pacingValues" value="3.0, 2.0, 1.5" required inputmode="decimal" />
+              <input id="pacing-values" name="pacingValues" value="4, 3, 2, 1" required inputmode="decimal" />
               <small>Digit onset to next digit onset</small>
             </label>
             <label>
@@ -81,12 +81,8 @@
               <input id="rest-duration" name="restDuration" type="number" value="30" min="1" step="1" required />
             </label>
             <label>
-              <span>PVSAT block (seconds)</span>
-              <input id="pvsat-duration" name="pvsatDuration" type="number" value="60" min="3" step="1" required />
-            </label>
-            <label>
               <span>Practice pacing (seconds)</span>
-              <input id="practice-pace" name="practicePace" type="number" value="4.0" min="1" max="10" step="0.25" required />
+              <input id="practice-pace" name="practicePace" type="number" value="5.0" min="1" max="10" step="0.25" required />
               <small>Slower onset interval before experimental blocks</small>
             </label>
             <label>
@@ -109,18 +105,35 @@
             </div>
           </div>
           <label>
-            <span>Ordering method</span>
+            <span>PVSAT pacing order</span>
             <select id="order-method" name="orderMethod">
-              <option value="fixed">Fixed: listed order</option>
-              <option value="reverse">Counterbalance B: reverse order</option>
-              <option value="rotate">Counterbalanced rotation by session</option>
+              <option value="fixed">Listed order</option>
+              <option value="reverse">Reverse order</option>
+              <option value="rotate">Rotate by session</option>
               <option value="random">Seeded random order</option>
             </select>
           </label>
+          <div class="sequence-order-panel">
+            <div class="sequence-order-heading">
+              <strong>Test sequence</strong>
+              <small>Use the arrow buttons to reorder the selected tests.</small>
+            </div>
+            <ol id="task-order" class="task-order" aria-label="Selected test sequence"></ol>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Nature video before and after</strong>
+              <small>Loops muted nature footage for six minutes at both ends of the cognitive battery</small>
+            </div>
+            <label class="switch" aria-label="Include nature video before and after the battery">
+              <input id="nature-video-enabled" name="natureVideoEnabled" type="checkbox" checked />
+              <span aria-hidden="true"></span>
+            </label>
+          </div>
           <div class="switch-row">
             <div>
               <strong>Slow practice first</strong>
-              <small>Runs before Rest and is excluded from experimental summaries</small>
+              <small>Runs immediately before the experimental PVSAT blocks and is excluded from summaries</small>
             </div>
             <label class="switch" aria-label="Enable slow practice">
               <input id="practice-enabled" name="practiceEnabled" type="checkbox" checked />
@@ -130,10 +143,10 @@
           <div class="switch-row">
             <div>
               <strong>Demo mode</strong>
-              <small>Uses 20-second practice, 5-second rests, and 15-second PVSAT blocks</small>
+              <small>Temporarily shortens videos, rests, and tests for setup checks</small>
             </div>
             <label class="switch" aria-label="Enable demo mode">
-              <input id="demo-mode" name="demoMode" type="checkbox" checked />
+              <input id="demo-mode" name="demoMode" type="checkbox" />
               <span aria-hidden="true"></span>
             </label>
           </div>
@@ -163,36 +176,57 @@
                 <input id="task-pvsat" type="checkbox" checked />
                 <span><strong>Modified PVSAT</strong><small>Serial addition · primary cognitive-load task</small></span>
               </label>
-              <label class="compact-select">
-                <span>Choices</span>
-                <select id="pvsat-choice-count" aria-label="PVSAT answer choice count">
-                  <option value="3" selected>3 choices</option>
-                  <option value="4">4 choices</option>
-                </select>
-              </label>
+              <div class="task-controls">
+                <label class="compact-select">
+                  <span>Choices</span>
+                  <select id="pvsat-choice-count" aria-label="PVSAT answer choice count">
+                    <option value="3" selected>3 choices</option>
+                    <option value="4">4 choices</option>
+                  </select>
+                </label>
+                <label class="compact-duration">
+                  <span>Minutes per pace</span>
+                  <input id="duration-pvsat" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="PVSAT minutes per pacing condition" />
+                </label>
+              </div>
             </div>
-            <label class="task-option task-check">
-              <input id="task-stroop" type="checkbox" checked />
-              <span><strong>Stroop task</strong><small>Executive inhibition and interference</small></span>
-            </label>
-            <label class="task-option task-check">
-              <input id="task-trail-a" type="checkbox" checked />
-              <span><strong>Trail Making Test A</strong><small>Visual attention and processing speed</small></span>
-            </label>
-            <label class="task-option task-check">
-              <input id="task-trail-b" type="checkbox" checked />
-              <span><strong>Trail Making Test B</strong><small>Executive set-shifting</small></span>
-            </label>
-            <label class="task-option task-check">
-              <input id="task-corsi" type="checkbox" checked />
-              <span><strong>Corsi spatial span</strong><small>Visuospatial working memory</small></span>
-            </label>
-            <label class="task-option task-check">
-              <input id="task-reaction" type="checkbox" checked />
-              <span><strong>Simple reaction time</strong><small>Low-load motor and attention control</small></span>
-            </label>
+            <div class="task-option">
+              <label class="task-check">
+                <input id="task-stroop" type="checkbox" checked />
+                <span><strong>Stroop task</strong><small>Executive inhibition and interference</small></span>
+              </label>
+              <label class="compact-duration"><span>Minutes</span><input id="duration-stroop" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="Stroop duration in minutes" /></label>
+            </div>
+            <div class="task-option">
+              <label class="task-check">
+                <input id="task-trail-a" type="checkbox" checked />
+                <span><strong>Trail Making Test A</strong><small>Visual attention and processing speed</small></span>
+              </label>
+              <label class="compact-duration"><span>Minutes</span><input id="duration-trail-a" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="Trail Making Test A duration in minutes" /></label>
+            </div>
+            <div class="task-option">
+              <label class="task-check">
+                <input id="task-trail-b" type="checkbox" checked />
+                <span><strong>Trail Making Test B</strong><small>Executive set-shifting</small></span>
+              </label>
+              <label class="compact-duration"><span>Minutes</span><input id="duration-trail-b" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="Trail Making Test B duration in minutes" /></label>
+            </div>
+            <div class="task-option">
+              <label class="task-check">
+                <input id="task-corsi" type="checkbox" checked />
+                <span><strong>Corsi spatial span</strong><small>Visuospatial working memory · resets to the starting span after an error</small></span>
+              </label>
+              <label class="compact-duration"><span>Minutes</span><input id="duration-corsi" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="Corsi duration in minutes" /></label>
+            </div>
+            <div class="task-option">
+              <label class="task-check">
+                <input id="task-reaction" type="checkbox" checked />
+                <span><strong>Simple reaction time</strong><small>Low-load motor and attention control</small></span>
+              </label>
+              <label class="compact-duration"><span>Minutes</span><input id="duration-reaction" type="number" value="3" min="0.25" max="60" step="0.25" aria-label="Simple reaction time duration in minutes" /></label>
+            </div>
           </div>
-          <p class="battery-note">A Rest block is inserted between selected testing conditions for respiratory recovery and synchronization.</p>
+          <p class="battery-note">Each test completes the attempt in progress after its minimum time is reached, then stops. A Rest block is inserted between testing conditions for respiratory recovery and synchronization.</p>
         </section>
 
         <aside class="card preview-card" aria-labelledby="preview-heading">

@@ -268,6 +268,79 @@ small {
   outline-offset: 2px;
 }
 
+.sequence-order-panel {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.sequence-order-heading strong {
+  display: block;
+  font-size: 0.88rem;
+}
+
+.task-order {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-order li {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfdfc;
+}
+
+.task-order li.task-order-empty {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.task-order-number {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--green-dark);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.task-order li strong {
+  font-size: 0.8rem;
+}
+
+.task-order-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.task-order-actions button {
+  width: 36px;
+  min-height: 34px;
+  border: 1px solid #c3d3cd;
+  border-radius: 8px;
+  background: white;
+  color: var(--green-dark);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.task-order-actions button:disabled {
+  opacity: 0.35;
+}
+
 .task-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -283,6 +356,14 @@ small {
   border: 1px solid var(--line);
   border-radius: 13px;
   background: #fbfdfc;
+}
+
+.task-option > .task-check {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .task-option--primary {
@@ -328,6 +409,31 @@ small {
   width: auto;
   min-height: 38px;
   padding: 7px 30px 7px 10px;
+}
+
+.task-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 14px;
+}
+
+.compact-duration {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+}
+
+.compact-duration > span {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+}
+
+.compact-duration input {
+  width: 82px;
+  min-height: 38px;
+  padding: 7px 8px;
+  text-align: right;
 }
 
 .battery-note {
@@ -378,6 +484,11 @@ small {
 .block-preview li.practice-block::before {
   background: #fae7cb;
   color: #8a571f;
+}
+
+.block-preview li.nature-block::before {
+  background: #dceaf4;
+  color: #315e78;
 }
 
 .block-preview strong {
@@ -794,6 +905,82 @@ small {
   display: block;
 }
 
+.nature-screen {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  padding: 18px 0 8px;
+}
+
+.nature-content {
+  display: grid;
+  width: min(1080px, 100%);
+  justify-items: center;
+  gap: 14px;
+}
+
+.nature-video,
+.nature-fallback {
+  width: 100%;
+  max-height: calc(100vh - 150px);
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 22px;
+  background: #10271f;
+  box-shadow: 0 22px 55px rgba(20, 53, 43, 0.2);
+  object-fit: cover;
+}
+
+.nature-content p {
+  margin: 0;
+  color: var(--muted);
+  font-size: clamp(0.9rem, 2vw, 1.08rem);
+  text-align: center;
+}
+
+.nature-start {
+  width: min(280px, 100%);
+}
+
+.nature-fallback {
+  position: relative;
+  background: linear-gradient(#bfe0e2 0 55%, #dce9d5 55% 100%);
+}
+
+.nature-sun {
+  position: absolute;
+  top: 12%;
+  right: 18%;
+  width: 12%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #f8d889;
+  box-shadow: 0 0 45px rgba(248, 216, 137, 0.55);
+}
+
+.nature-hill {
+  position: absolute;
+  right: -8%;
+  bottom: -45%;
+  left: -8%;
+  height: 80%;
+  border-radius: 50% 50% 0 0;
+}
+
+.nature-hill--far {
+  bottom: -42%;
+  left: -28%;
+  background: #729e7c;
+  transform: rotate(4deg);
+}
+
+.nature-hill--near {
+  right: -32%;
+  bottom: -52%;
+  background: #376c50;
+  transform: rotate(-5deg);
+}
+
 .rest-screen {
   display: grid;
   place-items: center;
@@ -986,6 +1173,21 @@ small {
 
   .task-option--primary {
     grid-column: auto;
+  }
+
+  .task-option,
+  .task-option--primary {
+    align-items: flex-start;
+  }
+
+  .task-controls {
+    display: grid;
+    gap: 8px;
+  }
+
+  .compact-select,
+  .compact-duration {
+    justify-items: end;
   }
 
   .answer-grid {
