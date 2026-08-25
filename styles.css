@@ -274,9 +274,28 @@ small {
   border-top: 1px solid var(--line);
 }
 
+.sequence-order-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .sequence-order-heading strong {
   display: block;
   font-size: 0.88rem;
+}
+
+.add-sequence-button {
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid #a8c8bd;
+  border-radius: 9px;
+  background: white;
+  color: var(--green-dark);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .task-order {
@@ -318,7 +337,23 @@ small {
 }
 
 .task-order li strong {
+  display: block;
   font-size: 0.8rem;
+}
+
+.task-order-label small {
+  display: block;
+  margin-top: 2px;
+}
+
+.task-order li.nature-order-item {
+  border-color: #bdcfde;
+  background: #f4f8fb;
+}
+
+.task-order li.nature-order-item .task-order-number {
+  background: #e0edf5;
+  color: #24536d;
 }
 
 .task-order-actions {
@@ -339,6 +374,11 @@ small {
 
 .task-order-actions button:disabled {
   opacity: 0.35;
+}
+
+.task-order-actions button.remove-sequence-button {
+  border-color: #ddc3c3;
+  color: #8b3b3b;
 }
 
 .task-options {

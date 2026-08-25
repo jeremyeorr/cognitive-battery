@@ -115,20 +115,13 @@
           </label>
           <div class="sequence-order-panel">
             <div class="sequence-order-heading">
-              <strong>Test sequence</strong>
-              <small>Use the arrow buttons to reorder the selected tests.</small>
+              <div>
+                <strong>Session sequence</strong>
+                <small>Reorder tests and nature-video periods with the arrow buttons.</small>
+              </div>
+              <button id="add-nature-video" class="add-sequence-button" type="button">+ Add nature video</button>
             </div>
-            <ol id="task-order" class="task-order" aria-label="Selected test sequence"></ol>
-          </div>
-          <div class="switch-row">
-            <div>
-              <strong>Nature video before and after</strong>
-              <small>Loops muted nature footage for six minutes at both ends of the cognitive battery</small>
-            </div>
-            <label class="switch" aria-label="Include nature video before and after the battery">
-              <input id="nature-video-enabled" name="natureVideoEnabled" type="checkbox" checked />
-              <span aria-hidden="true"></span>
-            </label>
+            <ol id="task-order" class="task-order" aria-label="Session sequence"></ol>
           </div>
           <div class="switch-row">
             <div>

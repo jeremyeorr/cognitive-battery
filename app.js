@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.5.0-mockup";
+const APP_VERSION = "0.6.0-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const NATURE_VIDEO_SECONDS = 6 * 60;
@@ -35,7 +35,7 @@ const els = {
   orderMethod: document.querySelector("#order-method"),
   demoMode: document.querySelector("#demo-mode"),
   demoFeedback: document.querySelector("#demo-feedback"),
-  natureVideoEnabled: document.querySelector("#nature-video-enabled"),
+  addNatureVideo: document.querySelector("#add-nature-video"),
   taskPvsat: document.querySelector("#task-pvsat"),
   taskStroop: document.querySelector("#task-stroop"),
   taskTrailA: document.querySelector("#task-trail-a"),
@@ -55,7 +55,12 @@ const els = {
   setupError: document.querySelector("#setup-error"),
 };
 
-let taskOrder = [...DEFAULT_TASK_ORDER];
+let natureSequenceId = 2;
+let sequenceEntries = [
+  { id: "nature-1", type: "nature" },
+  ...DEFAULT_TASK_ORDER.map((taskKey) => ({ id: `task-${taskKey}`, type: "task", taskKey })),
+  { id: "nature-2", type: "nature" },
+];
 
 const sessionState = {
   config: null,
@@ -116,6 +121,7 @@ function orderedPaces(paces, method, seed) {
 }
 
 function readConfig() {
+  syncSequenceEntries();
   const studyName = els.studyName.value.trim();
   const participantId = els.participantId.value.trim();
   const sessionLabel = els.sessionLabel.value.trim();
@@ -165,7 +171,6 @@ function readConfig() {
   const taskDurationsSeconds = Object.fromEntries(
     Object.entries(configuredTaskDurationsSeconds).map(([key, duration]) => [key, demoMode ? 15 : duration]),
   );
-  const natureVideoEnabled = els.natureVideoEnabled.checked;
   const natureVideoSeconds = demoMode ? 10 : NATURE_VIDEO_SECONDS;
   const paces = orderedPaces(pacingSeconds, els.orderMethod.value, seed);
   const practiceEnabled = els.practiceEnabled.checked;
@@ -181,22 +186,35 @@ function readConfig() {
   if (!Object.values(selectedTasks).some(Boolean)) {
     throw new Error("Select at least one testing option.");
   }
-  const selectedTaskOrder = taskOrder.filter((key) => selectedTasks[key]);
+  const selectedTaskOrder = sequenceEntries
+    .filter((entry) => entry.type === "task" && selectedTasks[entry.taskKey])
+    .map((entry) => entry.taskKey);
+  const natureVideoCount = sequenceEntries.filter((entry) => entry.type === "nature").length;
+  const natureVideoEnabled = natureVideoCount > 0;
   const blocks = [];
+  let naturePeriod = 0;
+  let initialRestInserted = false;
 
-  if (natureVideoEnabled) {
-    blocks.push({
-      type: "nature",
-      condition: "Nature video · Before battery",
-      durationSeconds: natureVideoSeconds,
-      videoPosition: "before",
-      videoSource: NATURE_VIDEO_SOURCE,
-    });
-  }
+  sequenceEntries.forEach((entry) => {
+    if (entry.type === "nature") {
+      naturePeriod += 1;
+      blocks.push({
+        type: "nature",
+        condition: `Nature video ${naturePeriod}`,
+        durationSeconds: natureVideoSeconds,
+        videoPeriod: naturePeriod,
+        sequenceItemId: entry.id,
+        videoSource: NATURE_VIDEO_SOURCE,
+      });
+      return;
+    }
 
-  blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
-
-  selectedTaskOrder.forEach((taskKey) => {
+    const taskKey = entry.taskKey;
+    if (!selectedTasks[taskKey]) return;
+    if (!initialRestInserted) {
+      blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
+      initialRestInserted = true;
+    }
     if (taskKey === "pvsat") {
       if (practiceEnabled) {
         blocks.push({
@@ -235,16 +253,6 @@ function readConfig() {
     blocks.push({ type: "rest", durationSeconds: restSeconds, condition: "Rest" });
   });
 
-  if (natureVideoEnabled) {
-    blocks.push({
-      type: "nature",
-      condition: "Nature video · After battery",
-      durationSeconds: natureVideoSeconds,
-      videoPosition: "after",
-      videoSource: NATURE_VIDEO_SOURCE,
-    });
-  }
-
   return {
     appVersion: APP_VERSION,
     jsPsychVersion: JSPsych_VERSION,
@@ -263,12 +271,14 @@ function readConfig() {
     pvsatChoiceCount,
     selectedTasks,
     selectedTaskOrder,
+    sequenceEntries: sequenceEntries.map((entry) => ({ ...entry })),
     configuredTaskDurationsSeconds,
     taskDurationsSeconds,
     configuredRestSeconds,
     restSeconds,
     pvsatSeconds: taskDurationsSeconds.pvsat,
     natureVideoEnabled,
+    natureVideoCount,
     natureVideoSeconds,
     natureVideoSource: NATURE_VIDEO_SOURCE,
     orderMethod: els.orderMethod.value,
@@ -292,39 +302,61 @@ function selectedTaskKeys() {
   return DEFAULT_TASK_ORDER.filter((key) => taskCheckboxes[key].checked);
 }
 
-function syncTaskOrder() {
+function syncSequenceEntries() {
   const selected = selectedTaskKeys();
-  taskOrder = taskOrder.filter((key) => selected.includes(key));
-  selected.forEach((key) => {
-    if (!taskOrder.includes(key)) taskOrder.push(key);
+  sequenceEntries = sequenceEntries.filter(
+    (entry) => entry.type === "nature" || selected.includes(entry.taskKey),
+  );
+  selected.forEach((taskKey) => {
+    if (sequenceEntries.some((entry) => entry.type === "task" && entry.taskKey === taskKey)) return;
+    let insertionIndex = sequenceEntries.length;
+    while (insertionIndex > 0 && sequenceEntries[insertionIndex - 1].type === "nature") {
+      insertionIndex -= 1;
+    }
+    sequenceEntries.splice(insertionIndex, 0, { id: `task-${taskKey}`, type: "task", taskKey });
   });
 }
 
 function renderTaskOrder() {
-  syncTaskOrder();
-  if (!taskOrder.length) {
-    els.taskOrder.innerHTML = '<li class="task-order-empty">Select a testing option to build the sequence.</li>';
+  syncSequenceEntries();
+  if (!sequenceEntries.length) {
+    els.taskOrder.innerHTML = '<li class="task-order-empty">Select a test or add a nature video to build the sequence.</li>';
     return;
   }
-  els.taskOrder.innerHTML = taskOrder
-    .map(
-      (key, index) => `<li data-task="${key}">
+  let natureOrdinal = 0;
+  els.taskOrder.innerHTML = sequenceEntries
+    .map((entry, index) => {
+      const isNature = entry.type === "nature";
+      if (isNature) natureOrdinal += 1;
+      const label = isNature ? `Nature video ${natureOrdinal}` : TASK_DEFINITIONS[entry.taskKey].label;
+      const detail = isNature ? "6 minutes · tap Start when ready" : TASK_DEFINITIONS[entry.taskKey].detail;
+      return `<li data-entry-id="${entry.id}" class="${isNature ? "nature-order-item" : ""}">
         <span class="task-order-number">${index + 1}</span>
-        <strong>${TASK_DEFINITIONS[key].label}</strong>
+        <span class="task-order-label"><strong>${label}</strong><small>${detail}</small></span>
         <span class="task-order-actions">
-          <button type="button" data-direction="-1" aria-label="Move ${TASK_DEFINITIONS[key].label} earlier" ${index === 0 ? "disabled" : ""}>↑</button>
-          <button type="button" data-direction="1" aria-label="Move ${TASK_DEFINITIONS[key].label} later" ${index === taskOrder.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" data-direction="-1" aria-label="Move ${label} earlier" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" data-direction="1" aria-label="Move ${label} later" ${index === sequenceEntries.length - 1 ? "disabled" : ""}>↓</button>
+          ${isNature ? `<button type="button" class="remove-sequence-button" data-remove-nature aria-label="Remove ${label}">×</button>` : ""}
         </span>
-      </li>`,
-    )
+      </li>`;
+    })
     .join("");
 }
 
-function moveTask(taskKey, direction) {
-  const index = taskOrder.indexOf(taskKey);
+function moveSequenceEntry(entryId, direction) {
+  const index = sequenceEntries.findIndex((entry) => entry.id === entryId);
   const target = index + direction;
-  if (index < 0 || target < 0 || target >= taskOrder.length) return;
-  [taskOrder[index], taskOrder[target]] = [taskOrder[target], taskOrder[index]];
+  if (index < 0 || target < 0 || target >= sequenceEntries.length) return;
+  [sequenceEntries[index], sequenceEntries[target]] = [sequenceEntries[target], sequenceEntries[index]];
+}
+
+function addNatureVideo() {
+  natureSequenceId += 1;
+  sequenceEntries.push({ id: `nature-${natureSequenceId}`, type: "nature" });
+}
+
+function removeNatureVideo(entryId) {
+  sequenceEntries = sequenceEntries.filter((entry) => !(entry.type === "nature" && entry.id === entryId));
 }
 
 function durationLabel(seconds) {
@@ -344,8 +376,8 @@ function updatePreview() {
         const label = block.type === "rest" ? "Rest" : `${block.condition}`;
         const details = {
           nature: config.demoMode
-            ? (block.videoPosition === "before" ? "Short demo baseline viewing" : "Short demo recovery viewing")
-            : (block.videoPosition === "before" ? "Six-minute baseline viewing" : "Six-minute recovery viewing"),
+            ? `Short demo viewing period ${block.videoPeriod}`
+            : `Six-minute viewing period ${block.videoPeriod}`,
           rest: "Natural breathing",
           practice: `Guided ${config.pvsatChoiceCount}-choice practice`,
           pvsat: `${config.pvsatChoiceCount}-choice serial addition`,
@@ -546,8 +578,8 @@ class FixedClockBlockPlugin {
         <div id="nature-fallback" class="nature-fallback" hidden aria-label="Quiet nature scene">
           <span class="nature-sun"></span><span class="nature-hill nature-hill--far"></span><span class="nature-hill nature-hill--near"></span>
         </div>
-        <button id="nature-start" class="secondary-button nature-start" type="button" hidden>Start nature video</button>
-        <p id="nature-status">Please watch the video, remain still, and breathe naturally.</p>
+        <button id="nature-start" class="primary-button nature-start" type="button">Start nature video</button>
+        <p id="nature-status">When ready, tap Start. This viewing period begins only when playback starts.</p>
       </div>`;
 
     const video = slot.querySelector("#nature-video");
@@ -568,14 +600,16 @@ class FixedClockBlockPlugin {
       logEvent("video_playback_offset", {
         block: blockNumber,
         condition: block.condition,
-        video_position: block.videoPosition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
         playback_mode: playbackMode,
       });
       logEvent("block_offset", {
         block: blockNumber,
         block_type: "nature",
         condition: block.condition,
-        video_position: block.videoPosition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
         scheduled_duration_ms: block.durationSeconds * 1000,
         actual_duration_ms: round(actualDuration),
         playback_mode: playbackMode,
@@ -585,7 +619,8 @@ class FixedClockBlockPlugin {
         block: blockNumber,
         block_type: "nature",
         condition: block.condition,
-        video_position: block.videoPosition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
         scheduled_duration_ms: block.durationSeconds * 1000,
         actual_duration_ms: round(actualDuration),
         playback_mode: playbackMode,
@@ -597,20 +632,23 @@ class FixedClockBlockPlugin {
       started = true;
       playbackMode = mode;
       startButton.hidden = true;
+      status.textContent = "Please watch the video, remain still, and breathe naturally.";
       startPerformance = performance.now();
       startRelative = relativeNow();
       logEvent("block_onset", {
         block: blockNumber,
         block_type: "nature",
         condition: block.condition,
-        video_position: block.videoPosition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
         scheduled_relative_ms: round(startRelative),
         playback_mode: playbackMode,
       });
       logEvent("video_playback_onset", {
         block: blockNumber,
         condition: block.condition,
-        video_position: block.videoPosition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
         playback_mode: playbackMode,
       });
       waitUntil(startPerformance + block.durationSeconds * 1000, finish);
@@ -622,21 +660,39 @@ class FixedClockBlockPlugin {
       () => {
         video.hidden = true;
         fallback.hidden = false;
-        status.textContent = "Nature footage was unavailable; continue watching the quiet nature scene.";
-        logEvent("video_playback_error", { block: blockNumber, condition: block.condition });
-        startClock("fallback");
+        playbackMode = "fallback";
+        logEvent("video_playback_error", {
+          block: blockNumber,
+          condition: block.condition,
+          video_period: block.videoPeriod,
+          sequence_item_id: block.sequenceItemId,
+        });
+        if (started) {
+          status.textContent = "Nature footage was unavailable; continue watching the quiet nature scene.";
+        } else {
+          startButton.hidden = false;
+          startButton.disabled = false;
+          startButton.textContent = "Start nature scene";
+          status.textContent = "Nature footage is unavailable. Tap Start when ready to view the quiet nature scene.";
+        }
       },
       { once: true },
     );
     startButton.addEventListener("click", () => {
+      startButton.disabled = true;
+      startButton.textContent = "Starting…";
+      if (playbackMode === "fallback") {
+        startClock("fallback");
+        return;
+      }
       video.play().catch(() => {
         startButton.hidden = false;
+        startButton.disabled = false;
+        startButton.textContent = playbackMode === "fallback" ? "Start nature scene" : "Start nature video";
+        status.textContent = playbackMode === "fallback"
+          ? "Tap Start when ready to view the quiet nature scene."
+          : "Playback could not start. Tap Start nature video to try again.";
       });
-    });
-
-    video.play().catch(() => {
-      startButton.hidden = false;
-      status.textContent = "Tap Start nature video to begin this block.";
     });
   }
 
@@ -1447,7 +1503,7 @@ function exportBaseName() {
 
 function exportJson() {
   const payload = {
-    schema_version: "0.2.0",
+    schema_version: "0.3.0",
     app_version: APP_VERSION,
     jspsych_version: JSPsych_VERSION,
     session_id: sessionState.clock.sessionId,
@@ -1579,10 +1635,21 @@ function showReadyScreen(config) {
 els.form.addEventListener("input", updatePreview);
 els.form.addEventListener("change", updatePreview);
 els.taskOrder.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-direction]");
-  const item = event.target.closest("li[data-task]");
-  if (!button || !item) return;
-  moveTask(item.dataset.task, Number(button.dataset.direction));
+  const item = event.target.closest("li[data-entry-id]");
+  if (!item) return;
+  const removeButton = event.target.closest("button[data-remove-nature]");
+  if (removeButton) {
+    removeNatureVideo(item.dataset.entryId);
+    updatePreview();
+    return;
+  }
+  const moveButton = event.target.closest("button[data-direction]");
+  if (!moveButton) return;
+  moveSequenceEntry(item.dataset.entryId, Number(moveButton.dataset.direction));
+  updatePreview();
+});
+els.addNatureVideo.addEventListener("click", () => {
+  addNatureVideo();
   updatePreview();
 });
 els.form.addEventListener("submit", (event) => {

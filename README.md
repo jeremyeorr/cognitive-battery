@@ -12,7 +12,7 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - Separate duration controls for every test, initially 3 minutes. Complete attempts continue until the configured minimum time is reached or surpassed.
 - Thirty-second Rest blocks by default, inserted between testing conditions.
 - Convenient arrow-button reordering of the selected cognitive tests, plus fixed, reversed, rotated, or seeded-random PVSAT pacing order.
-- Optional muted six-minute nature-video blocks before and after the cognitive battery, with shortened versions in demo mode.
+- Any number of muted six-minute nature-video periods can be added, reordered, or removed in the session sequence, with shortened versions in demo mode. Each period waits for the participant to tap Start, and its timer begins only when playback starts.
 - A short demo mode and optional demo-only answer feedback.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
 - Functioning touchscreen demos for Stroop, repeated Trail Making A/B attempts, Corsi spatial span, and simple reaction time.
