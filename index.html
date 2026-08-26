@@ -11,7 +11,7 @@
     <title>Respiratory Cognitive Battery</title>
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css" />
-    <link rel="stylesheet" href="styles.css?v=0.6.1" />
+    <link rel="stylesheet" href="styles.css?v=0.7.0" />
   </head>
   <body>
     <main id="setup-root" class="app-shell">
@@ -112,6 +112,18 @@
               <option value="rotate">Rotate by session</option>
               <option value="random">Seeded random order</option>
             </select>
+          </label>
+          <label class="nature-source-field">
+            <span>YouTube nature-video link <em>optional</em></span>
+            <input
+              id="nature-video-url"
+              name="natureVideoUrl"
+              type="url"
+              inputmode="url"
+              value="https://youtu.be/AKeUssuu3Is?t=12"
+              placeholder="https://www.youtube.com/watch?v=…"
+            />
+            <small>Used for every nature-video period. Leave blank for the built-in clip. A YouTube embed contacts YouTube during the session.</small>
           </label>
           <div class="sequence-order-panel">
             <div class="sequence-order-heading">
@@ -251,6 +263,6 @@
 
     <noscript>This experiment requires JavaScript.</noscript>
     <script src="https://unpkg.com/jspsych@8.3.0"></script>
-    <script src="app.js?v=0.6.1"></script>
+    <script src="app.js?v=0.7.0"></script>
   </body>
 </html>

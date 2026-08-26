@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.6.1-mockup";
+const APP_VERSION = "0.7.0-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const NATURE_VIDEO_SECONDS = 6 * 60;
@@ -35,6 +35,7 @@ const els = {
   orderMethod: document.querySelector("#order-method"),
   demoMode: document.querySelector("#demo-mode"),
   demoFeedback: document.querySelector("#demo-feedback"),
+  natureVideoUrl: document.querySelector("#nature-video-url"),
   addNatureVideo: document.querySelector("#add-nature-video"),
   taskPvsat: document.querySelector("#task-pvsat"),
   taskStroop: document.querySelector("#task-stroop"),
@@ -120,6 +121,93 @@ function orderedPaces(paces, method, seed) {
   return [...paces];
 }
 
+function parseYouTubeVideoId(rawValue) {
+  const value = rawValue.trim();
+  if (!value) return null;
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Enter a complete YouTube watch, share, Shorts, or embed link.");
+  }
+
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  let videoId = null;
+  if (host === "youtu.be") {
+    videoId = url.pathname.split("/").filter(Boolean)[0] || null;
+  } else if (
+    host === "youtube.com" ||
+    host === "m.youtube.com" ||
+    host === "music.youtube.com" ||
+    host === "youtube-nocookie.com"
+  ) {
+    if (url.pathname === "/watch") {
+      videoId = url.searchParams.get("v");
+    } else {
+      const parts = url.pathname.split("/").filter(Boolean);
+      if (["embed", "shorts", "live"].includes(parts[0])) videoId = parts[1] || null;
+    }
+  }
+
+  if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    throw new Error("That link does not contain a valid YouTube video ID.");
+  }
+  return videoId;
+}
+
+function parseYouTubeStartSeconds(rawValue) {
+  if (!rawValue.trim()) return 0;
+  const url = new URL(rawValue);
+  const rawTime = url.searchParams.get("t") || url.searchParams.get("start") || "0";
+  if (/^\d+$/.test(rawTime)) return Number(rawTime);
+  const match = rawTime.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
+  if (!match) return 0;
+  return Number(match[1] || 0) * 3600 + Number(match[2] || 0) * 60 + Number(match[3] || 0);
+}
+
+let youtubeApiPromise = null;
+
+function loadYouTubeIframeApi() {
+  if (window.YT?.Player) return Promise.resolve(window.YT);
+  if (youtubeApiPromise) return youtubeApiPromise;
+
+  youtubeApiPromise = new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error("YouTube player loading timed out.")), 12000);
+    const previousReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      try {
+        if (typeof previousReady === "function") previousReady();
+      } finally {
+        window.clearTimeout(timeoutId);
+        resolve(window.YT);
+      }
+    };
+
+    let script = document.querySelector("script[data-youtube-iframe-api]");
+    if (!script) {
+      script = document.createElement("script");
+      script.src = "https://www.youtube.com/iframe_api";
+      script.async = true;
+      script.dataset.youtubeIframeApi = "true";
+      document.head.appendChild(script);
+    }
+    script.addEventListener(
+      "error",
+      () => {
+        window.clearTimeout(timeoutId);
+        reject(new Error("YouTube player could not be loaded."));
+      },
+      { once: true },
+    );
+  }).catch((error) => {
+    youtubeApiPromise = null;
+    throw error;
+  });
+
+  return youtubeApiPromise;
+}
+
 function readConfig() {
   syncSequenceEntries();
   const studyName = els.studyName.value.trim();
@@ -172,6 +260,10 @@ function readConfig() {
     Object.entries(configuredTaskDurationsSeconds).map(([key, duration]) => [key, demoMode ? 15 : duration]),
   );
   const natureVideoSeconds = demoMode ? 10 : NATURE_VIDEO_SECONDS;
+  const natureVideoInputUrl = els.natureVideoUrl.value.trim();
+  const youtubeVideoId = parseYouTubeVideoId(natureVideoInputUrl);
+  const youtubeStartSeconds = youtubeVideoId ? parseYouTubeStartSeconds(natureVideoInputUrl) : 0;
+  const natureVideoProvider = youtubeVideoId ? "youtube" : "built-in";
   const paces = orderedPaces(pacingSeconds, els.orderMethod.value, seed);
   const practiceEnabled = els.practiceEnabled.checked;
   const pvsatChoiceCount = Number(els.pvsatChoiceCount.value);
@@ -204,7 +296,10 @@ function readConfig() {
         durationSeconds: natureVideoSeconds,
         videoPeriod: naturePeriod,
         sequenceItemId: entry.id,
-        videoSource: NATURE_VIDEO_SOURCE,
+        videoProvider: natureVideoProvider,
+        videoSource: youtubeVideoId ? natureVideoInputUrl : NATURE_VIDEO_SOURCE,
+        youtubeVideoId,
+        youtubeStartSeconds,
       });
       return;
     }
@@ -280,7 +375,11 @@ function readConfig() {
     natureVideoEnabled,
     natureVideoCount,
     natureVideoSeconds,
-    natureVideoSource: NATURE_VIDEO_SOURCE,
+    natureVideoProvider,
+    natureVideoInputUrl,
+    natureVideoSource: youtubeVideoId ? natureVideoInputUrl : NATURE_VIDEO_SOURCE,
+    youtubeVideoId,
+    youtubeStartSeconds,
     orderMethod: els.orderMethod.value,
     demoMode,
     demoFeedback: demoMode && els.demoFeedback.checked,
@@ -376,8 +475,8 @@ function updatePreview() {
         const label = block.type === "rest" ? "Rest" : `${block.condition}`;
         const details = {
           nature: config.demoMode
-            ? `Short demo viewing period ${block.videoPeriod}`
-            : `Six-minute viewing period ${block.videoPeriod}`,
+            ? `Short demo viewing period ${block.videoPeriod} · ${config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`
+            : `Six-minute viewing period ${block.videoPeriod} · ${config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`,
           rest: "Natural breathing",
           practice: `Guided ${config.pvsatChoiceCount}-choice practice`,
           pvsat: `${config.pvsatChoiceCount}-choice serial addition`,
@@ -567,35 +666,71 @@ class FixedClockBlockPlugin {
 
   runNature(displayElement, trial) {
     const { block, blockNumber, totalBlocks } = trial;
+    const isYouTube = block.videoProvider === "youtube" && Boolean(block.youtubeVideoId);
     displayElement.innerHTML = baseParticipantScreen(blockNumber, totalBlocks, block.condition);
     const slot = displayElement.querySelector(".screen-slot");
     slot.className = "screen-slot nature-screen";
+    const youtubeOrigin = window.location.origin === "null"
+      ? ""
+      : `&origin=${encodeURIComponent(window.location.origin)}`;
+    const youtubeStart = block.youtubeStartSeconds > 0 ? `&start=${block.youtubeStartSeconds}` : "";
+    const youtubeEmbedUrl = isYouTube
+      ? `https://www.youtube-nocookie.com/embed/${block.youtubeVideoId}?enablejsapi=1&autoplay=0&controls=0&playsinline=1&rel=0&iv_load_policy=3&loop=1&playlist=${block.youtubeVideoId}${youtubeStart}${youtubeOrigin}`
+      : "";
     slot.innerHTML = `
       <div class="nature-content">
-        <video id="nature-video" class="nature-video" muted loop playsinline preload="auto" aria-label="Nature video">
-          <source src="${block.videoSource}" type="video/mp4" />
-        </video>
+        ${isYouTube
+          ? `<iframe
+              id="nature-youtube"
+              class="nature-youtube"
+              src="${youtubeEmbedUrl}"
+              title="YouTube nature video"
+              frameborder="0"
+              allow="autoplay; encrypted-media; picture-in-picture"
+              referrerpolicy="strict-origin-when-cross-origin"
+              allowfullscreen
+            ></iframe>`
+          : `<video id="nature-video" class="nature-video" muted loop playsinline preload="auto" aria-label="Nature video">
+              <source src="${block.videoSource}" type="video/mp4" />
+            </video>`}
         <div id="nature-fallback" class="nature-fallback" hidden aria-label="Quiet nature scene">
           <span class="nature-sun"></span><span class="nature-hill nature-hill--far"></span><span class="nature-hill nature-hill--near"></span>
         </div>
-        <button id="nature-start" class="primary-button nature-start" type="button">Start nature video</button>
-        <p id="nature-status">When ready, tap Start. This viewing period begins only when playback starts.</p>
+        <button id="nature-start" class="primary-button nature-start" type="button" ${isYouTube ? "disabled" : ""}>${isYouTube ? "Loading YouTube player…" : "Start nature video"}</button>
+        <p id="nature-status">${isYouTube ? "Preparing the embedded YouTube video." : "When ready, tap Start. This viewing period begins only when playback starts."}</p>
       </div>`;
 
     const video = slot.querySelector("#nature-video");
+    const youtubeIframe = slot.querySelector("#nature-youtube");
     const fallback = slot.querySelector("#nature-fallback");
     const startButton = slot.querySelector("#nature-start");
     const status = slot.querySelector("#nature-status");
+    let youtubePlayer = null;
+    let youtubePlayerReady = false;
     let started = false;
     let finished = false;
     let startPerformance = null;
     let startRelative = null;
-    let playbackMode = "video";
+    let playbackMode = isYouTube ? "youtube" : "video";
+
+    const sourceDetails = () => ({
+      video_provider: block.videoProvider,
+      video_source: block.videoSource,
+      youtube_video_id: block.youtubeVideoId || null,
+      youtube_start_seconds: block.youtubeStartSeconds || 0,
+    });
 
     const finish = () => {
       if (finished) return;
       finished = true;
-      video.pause();
+      if (video) video.pause();
+      if (youtubePlayer?.pauseVideo) {
+        try {
+          youtubePlayer.pauseVideo();
+        } catch {
+          // The YouTube iframe may already have been removed after an error.
+        }
+      }
       const actualDuration = performance.now() - startPerformance;
       logEvent("video_playback_offset", {
         block: blockNumber,
@@ -603,6 +738,7 @@ class FixedClockBlockPlugin {
         video_period: block.videoPeriod,
         sequence_item_id: block.sequenceItemId,
         playback_mode: playbackMode,
+        ...sourceDetails(),
       });
       logEvent("block_offset", {
         block: blockNumber,
@@ -613,6 +749,7 @@ class FixedClockBlockPlugin {
         scheduled_duration_ms: block.durationSeconds * 1000,
         actual_duration_ms: round(actualDuration),
         playback_mode: playbackMode,
+        ...sourceDetails(),
       });
       this.jsPsych.finishTrial({
         record_type: "block_summary",
@@ -624,6 +761,7 @@ class FixedClockBlockPlugin {
         scheduled_duration_ms: block.durationSeconds * 1000,
         actual_duration_ms: round(actualDuration),
         playback_mode: playbackMode,
+        ...sourceDetails(),
       });
     };
 
@@ -643,6 +781,7 @@ class FixedClockBlockPlugin {
         sequence_item_id: block.sequenceItemId,
         scheduled_relative_ms: round(startRelative),
         playback_mode: playbackMode,
+        ...sourceDetails(),
       });
       logEvent("video_playback_onset", {
         block: blockNumber,
@@ -650,39 +789,89 @@ class FixedClockBlockPlugin {
         video_period: block.videoPeriod,
         sequence_item_id: block.sequenceItemId,
         playback_mode: playbackMode,
+        ...sourceDetails(),
       });
       waitUntil(startPerformance + block.durationSeconds * 1000, finish);
     };
 
-    video.addEventListener("playing", () => startClock("video"), { once: true });
-    video.addEventListener(
-      "error",
-      () => {
+    const showFallback = (message, errorCode = null) => {
+      if (video) {
+        video.pause();
         video.hidden = true;
-        fallback.hidden = false;
-        playbackMode = "fallback";
-        logEvent("video_playback_error", {
-          block: blockNumber,
-          condition: block.condition,
-          video_period: block.videoPeriod,
-          sequence_item_id: block.sequenceItemId,
-        });
-        if (started) {
-          status.textContent = "Nature footage was unavailable; continue watching the quiet nature scene.";
-        } else {
-          startButton.hidden = false;
-          startButton.disabled = false;
-          startButton.textContent = "Start nature scene";
-          status.textContent = "Nature footage is unavailable. Tap Start when ready to view the quiet nature scene.";
-        }
-      },
-      { once: true },
-    );
+      }
+      if (youtubeIframe) youtubeIframe.hidden = true;
+      fallback.hidden = false;
+      playbackMode = "fallback";
+      logEvent("video_playback_error", {
+        block: blockNumber,
+        condition: block.condition,
+        video_period: block.videoPeriod,
+        sequence_item_id: block.sequenceItemId,
+        error_code: errorCode,
+        error_message: message,
+        ...sourceDetails(),
+      });
+      if (started) {
+        status.textContent = "Video playback ended unexpectedly; continue watching the quiet nature scene.";
+      } else {
+        startButton.hidden = false;
+        startButton.disabled = false;
+        startButton.textContent = "Start nature scene";
+        status.textContent = `${message} Tap Start when ready to view the quiet nature scene.`;
+      }
+    };
+
+    if (video) {
+      video.addEventListener("playing", () => startClock("video"), { once: true });
+      video.addEventListener(
+        "error",
+        () => showFallback("Nature footage is unavailable.", "native_video_error"),
+        { once: true },
+      );
+    }
+
+    if (isYouTube) {
+      loadYouTubeIframeApi()
+        .then((YT) => {
+          youtubePlayer = new YT.Player(youtubeIframe, {
+            events: {
+              onReady: (event) => {
+                youtubePlayerReady = true;
+                event.target.mute();
+                startButton.disabled = false;
+                startButton.textContent = "Start YouTube video";
+                status.textContent = "When ready, tap Start. This viewing period begins only when playback starts.";
+              },
+              onStateChange: (event) => {
+                if (event.data === YT.PlayerState.PLAYING) {
+                  startClock("youtube");
+                } else if (event.data === YT.PlayerState.ENDED && started && !finished) {
+                  event.target.seekTo(block.youtubeStartSeconds || 0, true);
+                  event.target.playVideo();
+                }
+              },
+              onError: (event) => showFallback("The selected YouTube video cannot be embedded.", `youtube_${event.data}`),
+            },
+          });
+        })
+        .catch((error) => showFallback(error.message, "youtube_api_error"));
+    }
+
     startButton.addEventListener("click", () => {
       startButton.disabled = true;
       startButton.textContent = "Starting…";
       if (playbackMode === "fallback") {
         startClock("fallback");
+        return;
+      }
+      if (isYouTube) {
+        if (!youtubePlayer || !youtubePlayerReady) {
+          startButton.disabled = false;
+          startButton.textContent = "Start YouTube video";
+          status.textContent = "The YouTube player is still loading. Please try again.";
+          return;
+        }
+        youtubePlayer.playVideo();
         return;
       }
       video.play().catch(() => {
@@ -1503,7 +1692,7 @@ function exportBaseName() {
 
 function exportJson() {
   const payload = {
-    schema_version: "0.3.0",
+    schema_version: "0.4.0",
     app_version: APP_VERSION,
     jspsych_version: JSPsych_VERSION,
     session_id: sessionState.clock.sessionId,

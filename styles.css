@@ -19,6 +19,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   min-height: 100%;
@@ -201,6 +205,18 @@ small {
   color: var(--muted);
   font-size: 0.74rem;
   line-height: 1.4;
+}
+
+.nature-source-field {
+  display: block;
+  margin-top: 18px;
+}
+
+.nature-source-field em {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .switch-row {
@@ -960,6 +976,7 @@ small {
 }
 
 .nature-video,
+.nature-youtube,
 .nature-fallback {
   width: 100%;
   max-height: calc(100vh - 150px);
@@ -969,6 +986,10 @@ small {
   background: #10271f;
   box-shadow: 0 22px 55px rgba(20, 53, 43, 0.2);
   object-fit: cover;
+}
+
+.nature-youtube {
+  border: 0;
 }
 
 .nature-content p {

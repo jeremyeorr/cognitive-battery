@@ -13,6 +13,7 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - Thirty-second Rest blocks by default, inserted between testing conditions.
 - Convenient arrow-button reordering of the selected cognitive tests, plus fixed, reversed, rotated, or seeded-random PVSAT pacing order.
 - Any number of muted six-minute nature-video periods can be added, reordered, or removed in the session sequence, with shortened versions in demo mode. Each period waits for the participant to tap Start, and its timer begins only when playback starts.
+- An optional YouTube watch, share, Shorts, or embed link can supply every nature-video period. The default link starts at 12 seconds; clearing the field restores the built-in clip. YouTube playback uses its privacy-enhanced embedded player and requires network access.
 - A short demo mode and optional demo-only answer feedback.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
 - Functioning touchscreen demos for Stroop, repeated Trail Making A/B attempts, Corsi spatial span, and simple reaction time.
@@ -38,7 +39,7 @@ Then open `http://localhost:8080`.
 
 Place these files at the root of a GitHub repository, then enable GitHub Pages for the repository branch and root folder. The app is entirely static and does not require a build step or server-side storage.
 
-The jsPsych version is pinned to `8.3.0` on unpkg. The default nature block loops the CC0 flower footage hosted in MDN's interactive examples. For a production deployment, vendor the exact dependency and approved study video files so data collection does not depend on third-party CDNs.
+The jsPsych version is pinned to `8.3.0` on unpkg. Nature periods default to an embedded YouTube video; clearing the coordinator field uses the CC0 flower footage hosted in MDN's interactive examples. YouTube embeds contact YouTube during the session, and all remote-video options require network access. For a production deployment, vendor the exact dependency and approved study video files so data collection does not depend on third-party CDNs.
 
 ## Export structure
 
