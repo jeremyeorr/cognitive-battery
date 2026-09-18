@@ -12,7 +12,9 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - Separate duration controls for every test, initially 3 minutes. Complete attempts continue until the configured minimum time is reached or surpassed.
 - Thirty-second Rest blocks by default, inserted between testing conditions.
 - Convenient arrow-button reordering of the selected cognitive tests, plus fixed, reversed, rotated, or seeded-random PVSAT pacing order.
-- Any number of muted six-minute nature-video periods can be added, reordered, or removed in the session sequence, with shortened versions in demo mode. Each period waits for the participant to tap Start, and its timer begins only when playback starts.
+- Two muted nature-video periods follow the cognitive battery by default (6 minutes each). Duration per period is configurable; any number of periods can be added, reordered, or removed. Each waits for an explicit Start tap.
+- YouTube periods continue from the preceding period's observed media position, including across intervening tasks. Viewing duration follows media time, so pauses and buffering do not consume viewing time. No YouTube looping or silent substitute footage is used.
+- Before the battery, a coordinator playback/length check requires enough footage for the starting offset plus **all configured nature minutes**, even in demo mode. For the default link at 12 seconds and two 6-minute periods, the video must extend through **12 minutes 12 seconds**. Unavailable, unverified, or too-short videos block launch. Runtime errors stop progression and offer partial-data downloads.
 - An optional YouTube watch, share, Shorts, or embed link can supply every nature-video period. The default link starts at 12 seconds; clearing the field restores the built-in clip. YouTube playback uses its privacy-enhanced embedded player and requires network access.
 - A short demo mode and optional demo-only answer feedback.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
@@ -52,6 +54,10 @@ The JSON adds:
 - precise relative block onset/offset events;
 - digit onset/offset events and browser focus/fullscreen interaction events;
 - all trial records.
+
+Nature-video block summaries include the media start/end positions and played duration. YouTube player-state events identify pauses and buffering; configuration records the verified source duration. Browser polling is not frame-accurate (50-ms polling with up to 0.5 seconds of endpoint tolerance for successive-boundary rounding). The observed stop position is reused for the next period. Use prerecorded videos, not live streams. The blank-link built-in clip is a looping demo, not continuous study footage. Ads and third-party availability remain limitations of YouTube; pre-screen the chosen footage on the study device.
+
+Run the local regression checks with `node --test tests/nature-video.test.cjs`.
 
 High-resolution relative times use `performance.now()`. Wall-clock/ISO times are derived from the session's paired monotonic and Unix clock anchors.
 

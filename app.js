@@ -1,9 +1,8 @@
 "use strict";
 
-const APP_VERSION = "0.7.0-mockup";
+const APP_VERSION = "0.8.0-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
-const NATURE_VIDEO_SECONDS = 6 * 60;
 const DEFAULT_TASK_ORDER = ["pvsat", "stroop", "trail_a", "trail_b", "corsi", "reaction"];
 const TASK_DEFINITIONS = {
   pvsat: { label: "Modified PVSAT", condition: "PVSAT", detail: "Serial addition" },
@@ -36,6 +35,8 @@ const els = {
   demoMode: document.querySelector("#demo-mode"),
   demoFeedback: document.querySelector("#demo-feedback"),
   natureVideoUrl: document.querySelector("#nature-video-url"),
+  natureVideoDuration: document.querySelector("#nature-video-duration"),
+  natureVideoSummary: document.querySelector("#nature-video-summary"),
   addNatureVideo: document.querySelector("#add-nature-video"),
   taskPvsat: document.querySelector("#task-pvsat"),
   taskStroop: document.querySelector("#task-stroop"),
@@ -58,8 +59,8 @@ const els = {
 
 let natureSequenceId = 2;
 let sequenceEntries = [
-  { id: "nature-1", type: "nature" },
   ...DEFAULT_TASK_ORDER.map((taskKey) => ({ id: `task-${taskKey}`, type: "task", taskKey })),
+  { id: "nature-1", type: "nature" },
   { id: "nature-2", type: "nature" },
 ];
 
@@ -259,7 +260,11 @@ function readConfig() {
   const taskDurationsSeconds = Object.fromEntries(
     Object.entries(configuredTaskDurationsSeconds).map(([key, duration]) => [key, demoMode ? 15 : duration]),
   );
-  const natureVideoSeconds = demoMode ? 10 : NATURE_VIDEO_SECONDS;
+  const configuredNatureVideoSeconds = Number(els.natureVideoDuration.value) * 60;
+  if (!Number.isFinite(configuredNatureVideoSeconds) || configuredNatureVideoSeconds <= 0 || configuredNatureVideoSeconds > 3600) {
+    throw new Error("Nature-video duration must be greater than zero and at most 60 minutes per period.");
+  }
+  const natureVideoSeconds = demoMode ? 10 : configuredNatureVideoSeconds;
   const natureVideoInputUrl = els.natureVideoUrl.value.trim();
   const youtubeVideoId = parseYouTubeVideoId(natureVideoInputUrl);
   const youtubeStartSeconds = youtubeVideoId ? parseYouTubeStartSeconds(natureVideoInputUrl) : 0;
@@ -375,6 +380,8 @@ function readConfig() {
     natureVideoEnabled,
     natureVideoCount,
     natureVideoSeconds,
+    configuredNatureVideoSeconds,
+    requiredYoutubeEndSeconds: youtubeStartSeconds + natureVideoCount * configuredNatureVideoSeconds,
     natureVideoProvider,
     natureVideoInputUrl,
     natureVideoSource: youtubeVideoId ? natureVideoInputUrl : NATURE_VIDEO_SOURCE,
@@ -428,7 +435,7 @@ function renderTaskOrder() {
       const isNature = entry.type === "nature";
       if (isNature) natureOrdinal += 1;
       const label = isNature ? `Nature video ${natureOrdinal}` : TASK_DEFINITIONS[entry.taskKey].label;
-      const detail = isNature ? "6 minutes · tap Start when ready" : TASK_DEFINITIONS[entry.taskKey].detail;
+      const detail = isNature ? `${durationLabel(Number(els.natureVideoDuration.value) * 60)} · ${natureOrdinal === 1 ? "tap Start when ready" : "continues from previous video"}` : TASK_DEFINITIONS[entry.taskKey].detail;
       return `<li data-entry-id="${entry.id}" class="${isNature ? "nature-order-item" : ""}">
         <span class="task-order-number">${index + 1}</span>
         <span class="task-order-label"><strong>${label}</strong><small>${detail}</small></span>
@@ -459,8 +466,9 @@ function removeNatureVideo(entryId) {
 }
 
 function durationLabel(seconds) {
-  const minutes = Math.floor(seconds / 60);
-  const remainder = Math.round(seconds % 60);
+  const roundedSeconds = Math.round(seconds);
+  const minutes = Math.floor(roundedSeconds / 60);
+  const remainder = roundedSeconds % 60;
   if (!minutes) return `${remainder}s`;
   return remainder ? `${minutes}m ${remainder}s` : `${minutes}m`;
 }
@@ -470,13 +478,16 @@ function updatePreview() {
     renderTaskOrder();
     const config = readConfig();
     els.setupError.textContent = "";
+    els.natureVideoSummary.textContent = !config.natureVideoCount
+      ? "No nature-video periods selected."
+      : `${config.natureVideoCount} periods · ${durationLabel(config.natureVideoCount * config.configuredNatureVideoSeconds)} total viewing time. ${config.youtubeVideoId ? `YouTube must extend through ${durationLabel(config.requiredYoutubeEndSeconds)}, including the starting offset. Length is checked before the battery starts.` : "The built-in short clip loops and is for demonstration only."}${config.demoMode ? " Demo playback is 10 seconds per period; the length check still covers the full configured session." : ""}`;
     els.blockPreview.innerHTML = config.blocks
       .map((block) => {
         const label = block.type === "rest" ? "Rest" : `${block.condition}`;
         const details = {
           nature: config.demoMode
             ? `Short demo viewing period ${block.videoPeriod} · ${config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`
-            : `Six-minute viewing period ${block.videoPeriod} · ${config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`,
+            : `Viewing period ${block.videoPeriod} · ${block.videoPeriod > 1 ? "continues previous video" : config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`,
           rest: "Natural breathing",
           practice: `Guided ${config.pvsatChoiceCount}-choice practice`,
           pvsat: `${config.pvsatChoiceCount}-choice serial addition`,
@@ -666,221 +677,91 @@ class FixedClockBlockPlugin {
 
   runNature(displayElement, trial) {
     const { block, blockNumber, totalBlocks } = trial;
-    const isYouTube = block.videoProvider === "youtube" && Boolean(block.youtubeVideoId);
+    if (block.videoProvider === "youtube" && block.youtubeVideoId) {
+      runContinuousYouTubeNature(displayElement, trial, this.jsPsych);
+      return;
+    }
+    // The optional built-in short clip is explicitly a looping demonstration,
+    // not a substitute for the validated continuous YouTube stimulus.
     displayElement.innerHTML = baseParticipantScreen(blockNumber, totalBlocks, block.condition);
     const slot = displayElement.querySelector(".screen-slot");
     slot.className = "screen-slot nature-screen";
-    const youtubeOrigin = window.location.origin === "null"
-      ? ""
-      : `&origin=${encodeURIComponent(window.location.origin)}`;
-    const youtubeStart = block.youtubeStartSeconds > 0 ? `&start=${block.youtubeStartSeconds}` : "";
-    const youtubeEmbedUrl = isYouTube
-      ? `https://www.youtube-nocookie.com/embed/${block.youtubeVideoId}?enablejsapi=1&autoplay=0&controls=0&playsinline=1&rel=0&iv_load_policy=3&loop=1&playlist=${block.youtubeVideoId}${youtubeStart}${youtubeOrigin}`
-      : "";
     slot.innerHTML = `
       <div class="nature-content">
-        ${isYouTube
-          ? `<iframe
-              id="nature-youtube"
-              class="nature-youtube"
-              src="${youtubeEmbedUrl}"
-              title="YouTube nature video"
-              frameborder="0"
-              allow="autoplay; encrypted-media; picture-in-picture"
-              referrerpolicy="strict-origin-when-cross-origin"
-              allowfullscreen
-            ></iframe>`
-          : `<video id="nature-video" class="nature-video" muted loop playsinline preload="auto" aria-label="Nature video">
-              <source src="${block.videoSource}" type="video/mp4" />
-            </video>`}
-        <div id="nature-fallback" class="nature-fallback" hidden aria-label="Quiet nature scene">
-          <span class="nature-sun"></span><span class="nature-hill nature-hill--far"></span><span class="nature-hill nature-hill--near"></span>
-        </div>
-        <button id="nature-start" class="primary-button nature-start" type="button" ${isYouTube ? "disabled" : ""}>${isYouTube ? "Loading YouTube player…" : "Start nature video"}</button>
-        <p id="nature-status">${isYouTube ? "Preparing the embedded YouTube video." : "When ready, tap Start. This viewing period begins only when playback starts."}</p>
+        <video id="nature-video" class="nature-video" muted loop playsinline preload="auto" aria-label="Looping demonstration nature clip">
+          <source src="${block.videoSource}" type="video/mp4" />
+        </video>
+        <button id="nature-start" class="primary-button nature-start" type="button">Start demo nature clip</button>
+        <p id="nature-status">Looping demonstration clip. Tap Start when ready.</p>
       </div>`;
-
     const video = slot.querySelector("#nature-video");
-    const youtubeIframe = slot.querySelector("#nature-youtube");
-    const fallback = slot.querySelector("#nature-fallback");
     const startButton = slot.querySelector("#nature-start");
     const status = slot.querySelector("#nature-status");
-    let youtubePlayer = null;
-    let youtubePlayerReady = false;
     let started = false;
+    let activeStart = null;
+    let playedMs = 0;
+    let interval = null;
     let finished = false;
-    let startPerformance = null;
-    let startRelative = null;
-    let playbackMode = isYouTube ? "youtube" : "video";
-
     const sourceDetails = () => ({
-      video_provider: block.videoProvider,
-      video_source: block.videoSource,
-      youtube_video_id: block.youtubeVideoId || null,
-      youtube_start_seconds: block.youtubeStartSeconds || 0,
+      block: blockNumber, block_type: "nature", condition: block.condition,
+      video_period: block.videoPeriod, video_provider: "built-in",
+      video_source: block.videoSource, playback_mode: "looping_demo",
+      media_time_seconds: round(video.currentTime),
     });
-
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (video) video.pause();
-      if (youtubePlayer?.pauseVideo) {
-        try {
-          youtubePlayer.pauseVideo();
-        } catch {
-          // The YouTube iframe may already have been removed after an error.
-        }
+    video.addEventListener("loadedmetadata", () => {
+      if (Number.isFinite(video.duration) && video.duration > 0) {
+        video.currentTime = (sessionState.nativeNatureCursorSeconds || 0) % video.duration;
       }
-      const actualDuration = performance.now() - startPerformance;
-      logEvent("video_playback_offset", {
-        block: blockNumber,
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        playback_mode: playbackMode,
-        ...sourceDetails(),
-      });
-      logEvent("block_offset", {
-        block: blockNumber,
-        block_type: "nature",
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        scheduled_duration_ms: block.durationSeconds * 1000,
-        actual_duration_ms: round(actualDuration),
-        playback_mode: playbackMode,
-        ...sourceDetails(),
-      });
-      this.jsPsych.finishTrial({
-        record_type: "block_summary",
-        block: blockNumber,
-        block_type: "nature",
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        scheduled_duration_ms: block.durationSeconds * 1000,
-        actual_duration_ms: round(actualDuration),
-        playback_mode: playbackMode,
-        ...sourceDetails(),
-      });
+    });
+    const stopSegment = () => {
+      if (activeStart !== null) playedMs += performance.now() - activeStart;
+      activeStart = null;
     };
-
-    const startClock = (mode = "video") => {
+    video.addEventListener("playing", () => {
+      if (finished) return;
+      activeStart = performance.now();
+      startButton.hidden = true;
       if (started) return;
       started = true;
-      playbackMode = mode;
-      startButton.hidden = true;
-      status.textContent = "Please watch the video, remain still, and breathe naturally.";
-      startPerformance = performance.now();
-      startRelative = relativeNow();
-      logEvent("block_onset", {
-        block: blockNumber,
-        block_type: "nature",
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        scheduled_relative_ms: round(startRelative),
-        playback_mode: playbackMode,
-        ...sourceDetails(),
-      });
-      logEvent("video_playback_onset", {
-        block: blockNumber,
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        playback_mode: playbackMode,
-        ...sourceDetails(),
-      });
-      waitUntil(startPerformance + block.durationSeconds * 1000, finish);
-    };
-
-    const showFallback = (message, errorCode = null) => {
-      if (video) {
+      logEvent("block_onset", sourceDetails());
+      logEvent("video_playback_onset", sourceDetails());
+      interval = window.setInterval(() => {
+        const elapsed = playedMs + (activeStart === null ? 0 : performance.now() - activeStart);
+        if (elapsed < block.durationSeconds * 1000 || finished) return;
+        finished = true;
+        window.clearInterval(interval);
         video.pause();
-        video.hidden = true;
-      }
-      if (youtubeIframe) youtubeIframe.hidden = true;
-      fallback.hidden = false;
-      playbackMode = "fallback";
-      logEvent("video_playback_error", {
-        block: blockNumber,
-        condition: block.condition,
-        video_period: block.videoPeriod,
-        sequence_item_id: block.sequenceItemId,
-        error_code: errorCode,
-        error_message: message,
-        ...sourceDetails(),
-      });
-      if (started) {
-        status.textContent = "Video playback ended unexpectedly; continue watching the quiet nature scene.";
-      } else {
-        startButton.hidden = false;
-        startButton.disabled = false;
-        startButton.textContent = "Start nature scene";
-        status.textContent = `${message} Tap Start when ready to view the quiet nature scene.`;
-      }
-    };
-
-    if (video) {
-      video.addEventListener("playing", () => startClock("video"), { once: true });
-      video.addEventListener(
-        "error",
-        () => showFallback("Nature footage is unavailable.", "native_video_error"),
-        { once: true },
-      );
-    }
-
-    if (isYouTube) {
-      loadYouTubeIframeApi()
-        .then((YT) => {
-          youtubePlayer = new YT.Player(youtubeIframe, {
-            events: {
-              onReady: (event) => {
-                youtubePlayerReady = true;
-                event.target.mute();
-                startButton.disabled = false;
-                startButton.textContent = "Start YouTube video";
-                status.textContent = "When ready, tap Start. This viewing period begins only when playback starts.";
-              },
-              onStateChange: (event) => {
-                if (event.data === YT.PlayerState.PLAYING) {
-                  startClock("youtube");
-                } else if (event.data === YT.PlayerState.ENDED && started && !finished) {
-                  event.target.seekTo(block.youtubeStartSeconds || 0, true);
-                  event.target.playVideo();
-                }
-              },
-              onError: (event) => showFallback("The selected YouTube video cannot be embedded.", `youtube_${event.data}`),
-            },
-          });
-        })
-        .catch((error) => showFallback(error.message, "youtube_api_error"));
-    }
-
+        sessionState.nativeNatureCursorSeconds = video.currentTime;
+        const row = { ...sourceDetails(), record_type: "block_summary",
+          scheduled_duration_ms: block.durationSeconds * 1000, played_duration_ms: round(elapsed) };
+        logEvent("video_playback_offset", row);
+        logEvent("block_offset", row);
+        sessionState.trials.push(row);
+        this.jsPsych.finishTrial(row);
+      }, 50);
+    });
+    video.addEventListener("waiting", stopSegment);
+    video.addEventListener("pause", () => {
+      stopSegment();
+      if (!finished) { startButton.hidden = false; startButton.disabled = false; }
+    });
+    video.addEventListener("error", () => {
+      stopSegment();
+      window.clearInterval(interval);
+      status.textContent = "The demo clip could not load. Save partial data before reloading.";
+      startButton.hidden = true;
+      logEvent("video_playback_error", sourceDetails());
+      const save = document.createElement("button");
+      save.className = "secondary-button";
+      save.textContent = "Save partial JSON";
+      save.addEventListener("click", exportJson);
+      status.after(save);
+    });
     startButton.addEventListener("click", () => {
       startButton.disabled = true;
-      startButton.textContent = "Starting…";
-      if (playbackMode === "fallback") {
-        startClock("fallback");
-        return;
-      }
-      if (isYouTube) {
-        if (!youtubePlayer || !youtubePlayerReady) {
-          startButton.disabled = false;
-          startButton.textContent = "Start YouTube video";
-          status.textContent = "The YouTube player is still loading. Please try again.";
-          return;
-        }
-        youtubePlayer.playVideo();
-        return;
-      }
       video.play().catch(() => {
-        startButton.hidden = false;
         startButton.disabled = false;
-        startButton.textContent = playbackMode === "fallback" ? "Start nature scene" : "Start nature video";
-        status.textContent = playbackMode === "fallback"
-          ? "Tap Start when ready to view the quiet nature scene."
-          : "Playback could not start. Tap Start nature video to try again.";
+        status.textContent = "Tap Start to try playback again.";
       });
     });
   }
@@ -1754,6 +1635,8 @@ function beginExperiment(config) {
   els.experimentRoot.innerHTML = "";
   window.scrollTo(0, 0);
   sessionState.config = config;
+  sessionState.natureCursorSeconds = config.youtubeStartSeconds;
+  sessionState.nativeNatureCursorSeconds = 0;
   sessionState.trials = [];
   sessionState.events = [];
   sessionState.eventIndex = 0;
@@ -1801,6 +1684,7 @@ function showReadyScreen(config) {
         <p class="eyebrow">Participant instructions</p>
         <h2>Follow the instructions for each selected task.</h2>
         <p>The battery will guide you through ${Object.values(config.selectedTasks).filter(Boolean).length} testing option${Object.values(config.selectedTasks).filter(Boolean).length === 1 ? "" : "s"}, with Rest blocks in between.</p>
+        ${config.youtubeDurationSeconds ? `<p>Nature video verified: ${durationLabel(config.youtubeDurationSeconds)} available. The ${config.natureVideoCount} viewing periods will continue sequentially from ${durationLabel(config.youtubeStartSeconds)}, with a Start button for each.</p>` : ""}
         <ol class="instruction-list">
           <li><b>1</b><span>Read the task-specific instruction at the top of each screen.</span></li>
           <li><b>2</b><span>Respond by tapping the large on-screen targets.</span></li>
@@ -1846,7 +1730,11 @@ els.form.addEventListener("submit", (event) => {
   try {
     const config = readConfig();
     els.setupError.textContent = "";
-    showReadyScreen(config);
+    if (config.natureVideoCount && config.youtubeVideoId) {
+      showNatureVideoCheck(config);
+    } else {
+      showReadyScreen(config);
+    }
   } catch (error) {
     els.setupError.textContent = error.message;
   }

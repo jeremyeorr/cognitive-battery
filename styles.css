@@ -212,6 +212,11 @@ small {
   margin-top: 18px;
 }
 
+.nature-video-summary { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+.nature-check-panel { width: min(100%, 850px); }
+.nature-check-panel .nature-youtube { min-height: 220px; margin: 12px 0; }
+.nature-check-panel .secondary-button { margin-top: 12px; width: 100%; }
+
 .nature-source-field em {
   color: var(--muted);
   font-size: 0.72rem;
