@@ -11,7 +11,7 @@
     <title>Respiratory Cognitive Battery</title>
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css" />
-    <link rel="stylesheet" href="styles.css?v=0.9.1" />
+    <link rel="stylesheet" href="styles.css?v=0.9.2" />
   </head>
   <body>
     <main id="setup-root" class="app-shell">
@@ -58,115 +58,10 @@
           </div>
         </section>
 
-        <section class="card timing-card" aria-labelledby="timing-heading">
-          <div class="card-heading">
-            <div>
-              <p class="step-label">02 / Timing</p>
-              <h2 id="timing-heading">Pacing parameters</h2>
-            </div>
-          </div>
-          <div class="field-grid field-grid--two">
-            <label>
-              <span>Pacing intervals (seconds)</span>
-              <input id="pacing-values" name="pacingValues" value="4, 3, 2" required inputmode="decimal" />
-              <small>Digit onset to next digit onset</small>
-            </label>
-            <label>
-              <span>Digit display (seconds)</span>
-              <input id="stimulus-duration" name="stimulusDuration" type="number" value="1.0" min="0.1" max="2" step="0.05" required />
-              <small>Independent of the pacing interval</small>
-            </label>
-            <label>
-              <span>Rest block (seconds)</span>
-              <input id="rest-duration" name="restDuration" type="number" value="30" min="1" step="1" required />
-            </label>
-            <label>
-              <span>Practice pacing (seconds)</span>
-              <input id="practice-pace" name="practicePace" type="number" value="5.0" min="1" max="10" step="0.25" required />
-              <small>Slower onset interval before experimental blocks</small>
-            </label>
-            <label>
-              <span>Practice digit display (seconds)</span>
-              <input id="practice-stimulus-duration" name="practiceStimulusDuration" type="number" value="1.0" min="0.1" max="3" step="0.05" required />
-              <small>Independent of practice pacing</small>
-            </label>
-            <label>
-              <span>Practice duration (seconds)</span>
-              <input id="practice-duration" name="practiceDuration" type="number" value="32" min="8" step="1" required />
-            </label>
-          </div>
-        </section>
-
-        <section class="card sequence-card" aria-labelledby="sequence-heading">
-          <div class="card-heading">
-            <div>
-              <p class="step-label">03 / Sequence</p>
-              <h2 id="sequence-heading">Block order</h2>
-            </div>
-          </div>
-          <label class="nature-source-field">
-            <span>YouTube nature-video link <em>optional</em></span>
-            <input
-              id="nature-video-url"
-              name="natureVideoUrl"
-              type="url"
-              inputmode="url"
-              value="https://youtu.be/AKeUssuu3Is?t=12"
-              placeholder="https://www.youtube.com/watch?v=…"
-            />
-            <small>Use a prerecorded video, not a live stream. Each period continues where the previous one stopped. Leave blank for the looping demo clip. Embedding contacts YouTube.</small>
-          </label>
-          <label class="nature-source-field">
-            <span>Minutes per nature-video period</span>
-            <input id="nature-video-duration" name="natureVideoDuration" type="number" value="6" min="0.25" max="60" step="0.25" />
-          </label>
-          <p id="nature-video-summary" class="nature-video-summary" aria-live="polite"></p>
-          <div class="sequence-order-panel">
-            <div class="sequence-order-heading">
-              <div>
-                <strong>Session sequence</strong>
-                <small>Reorder tests and nature-video periods with the arrow buttons.</small>
-              </div>
-              <button id="add-nature-video" class="add-sequence-button" type="button">+ Add nature video</button>
-            </div>
-            <ol id="task-order" class="task-order" aria-label="Session sequence"></ol>
-          </div>
-          <div class="switch-row">
-            <div>
-              <strong>Slow practice first</strong>
-              <small>Runs immediately before the experimental PVSAT blocks and is excluded from summaries</small>
-            </div>
-            <label class="switch" aria-label="Enable slow practice">
-              <input id="practice-enabled" name="practiceEnabled" type="checkbox" checked />
-              <span aria-hidden="true"></span>
-            </label>
-          </div>
-          <div class="switch-row">
-            <div>
-              <strong>Demo mode</strong>
-              <small>Temporarily shortens videos, rests, and tests for setup checks</small>
-            </div>
-            <label class="switch" aria-label="Enable demo mode">
-              <input id="demo-mode" name="demoMode" type="checkbox" />
-              <span aria-hidden="true"></span>
-            </label>
-          </div>
-          <div class="switch-row">
-            <div>
-              <strong>Demo feedback</strong>
-              <small>Briefly marks selections as correct or incorrect</small>
-            </div>
-            <label class="switch" aria-label="Enable demo feedback">
-              <input id="demo-feedback" name="demoFeedback" type="checkbox" />
-              <span aria-hidden="true"></span>
-            </label>
-          </div>
-        </section>
-
         <section class="card battery-card" aria-labelledby="battery-heading">
           <div class="card-heading">
             <div>
-              <p class="step-label">04 / Battery</p>
+              <p class="step-label">02 / Battery</p>
               <h2 id="battery-heading">Testing options</h2>
             </div>
             <span class="duration-chip">Select any combination</span>
@@ -230,6 +125,111 @@
           <p class="battery-note">Each test completes the attempt in progress after its minimum time is reached, then stops. A Rest block is inserted between testing conditions for respiratory recovery and synchronization.</p>
         </section>
 
+        <section class="card timing-card" aria-labelledby="timing-heading">
+          <div class="card-heading">
+            <div>
+              <p class="step-label">03 / PVSAT</p>
+              <h2 id="timing-heading">PVSAT pacing parameters</h2>
+            </div>
+          </div>
+          <div class="field-grid field-grid--two">
+            <label>
+              <span>Pacing intervals (seconds)</span>
+              <input id="pacing-values" name="pacingValues" value="4, 3, 2" required inputmode="decimal" />
+              <small>Digit onset to next digit onset</small>
+            </label>
+            <label>
+              <span>Digit display (seconds)</span>
+              <input id="stimulus-duration" name="stimulusDuration" type="number" value="1.0" min="0.1" max="2" step="0.05" required />
+              <small>Independent of the pacing interval</small>
+            </label>
+            <label>
+              <span>Practice pacing (seconds)</span>
+              <input id="practice-pace" name="practicePace" type="number" value="5.0" min="1" max="10" step="0.25" required />
+              <small>Slower onset interval before experimental blocks</small>
+            </label>
+            <label>
+              <span>Practice digit display (seconds)</span>
+              <input id="practice-stimulus-duration" name="practiceStimulusDuration" type="number" value="1.0" min="0.1" max="3" step="0.05" required />
+              <small>Independent of practice pacing</small>
+            </label>
+            <label>
+              <span>Practice duration (seconds)</span>
+              <input id="practice-duration" name="practiceDuration" type="number" value="32" min="8" step="1" required />
+            </label>
+          </div>
+        </section>
+
+        <section class="card sequence-card" aria-labelledby="sequence-heading">
+          <div class="card-heading">
+            <div>
+              <p class="step-label">04 / Sequence</p>
+              <h2 id="sequence-heading">Block order</h2>
+            </div>
+          </div>
+            <label>
+              <span>Rest block (seconds)</span>
+              <input id="rest-duration" name="restDuration" type="number" value="30" min="1" step="1" required />
+            </label>
+          <label class="nature-source-field">
+            <span>YouTube nature-video link <em>optional</em></span>
+            <input
+              id="nature-video-url"
+              name="natureVideoUrl"
+              type="url"
+              inputmode="url"
+              value="https://youtu.be/AKeUssuu3Is?t=12"
+              placeholder="https://www.youtube.com/watch?v=…"
+            />
+            <small>Use a prerecorded video, not a live stream. Each period continues where the previous one stopped. Leave blank for the looping demo clip. Embedding contacts YouTube.</small>
+          </label>
+          <label class="nature-source-field">
+            <span>Minutes per nature-video period</span>
+            <input id="nature-video-duration" name="natureVideoDuration" type="number" value="6" min="0.25" max="60" step="0.25" />
+          </label>
+          <p id="nature-video-summary" class="nature-video-summary" aria-live="polite"></p>
+          <div class="sequence-order-panel">
+            <div class="sequence-order-heading">
+              <div>
+                <strong>Session sequence</strong>
+                <small>Reorder tests and nature-video periods with the arrow buttons.</small>
+              </div>
+              <button id="add-nature-video" class="add-sequence-button" type="button">+ Add nature video</button>
+            </div>
+            <ol id="task-order" class="task-order" aria-label="Session sequence"></ol>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Slow practice first</strong>
+              <small>Runs immediately before the experimental PVSAT blocks and is excluded from summaries</small>
+            </div>
+            <label class="switch" aria-label="Enable slow practice">
+              <input id="practice-enabled" name="practiceEnabled" type="checkbox" checked />
+              <span aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Demo mode</strong>
+              <small>Temporarily shortens videos, rests, and tests for setup checks</small>
+            </div>
+            <label class="switch" aria-label="Enable demo mode">
+              <input id="demo-mode" name="demoMode" type="checkbox" />
+              <span aria-hidden="true"></span>
+            </label>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Demo feedback</strong>
+              <small>Briefly marks selections as correct or incorrect</small>
+            </div>
+            <label class="switch" aria-label="Enable demo feedback">
+              <input id="demo-feedback" name="demoFeedback" type="checkbox" autocomplete="off" />
+              <span aria-hidden="true"></span>
+            </label>
+          </div>
+        </section>
+
         <aside class="card preview-card" aria-labelledby="preview-heading">
           <div class="card-heading">
             <div>
@@ -275,8 +275,8 @@
 
     <noscript>This experiment requires JavaScript.</noscript>
     <script src="https://unpkg.com/jspsych@8.3.0"></script>
-    <script src="session-control.js?v=0.9.1"></script>
+    <script src="session-control.js?v=0.9.2"></script>
     <script src="nature-video.js?v=0.9.0"></script>
-    <script src="app.js?v=0.9.1"></script>
+    <script src="app.js?v=0.9.2"></script>
   </body>
 </html>

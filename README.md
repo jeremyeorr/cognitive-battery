@@ -27,6 +27,7 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - Automatic Rest blocks between selected testing conditions.
 - Absolute stimulus scheduling: a response never starts or delays the next digit timer.
 - Trial-level CSV export and full JSON export containing configuration, trial rows, and a session/event log.
+- Completion and confirmed early exit open a save checkpoint: request CSV and JSON separately, verify both files in Downloads/Files, then explicitly confirm they are saved. Partial downloads made during the battery do not satisfy the final checkpoint. The browser leave/refresh warning remains active until confirmation. A page cannot verify download completion or prevent forced closure; iPad/mobile browsers may suppress the warning. No persistent recovery copy is stored, so save before leaving.
 - All study data remain in browser memory until the coordinator downloads them. There is no upload endpoint and nothing is written to GitHub.
 
 ## Run locally

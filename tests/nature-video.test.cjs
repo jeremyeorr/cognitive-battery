@@ -441,3 +441,59 @@ test('early-end completion screen retains both local export buttons and marks pa
   assert.match(h.node('#experiment-root').innerHTML,/download-json/);
   assert.equal(h.state.running,false);
 });
+
+test('completed and early-ended sessions retain leave protection until both downloads are verified', () => {
+  for (const endedEarly of [false, true]) {
+    const h = harness(); h.state.config = h.ctx.readConfig(); h.state.endedEarly = endedEarly;
+    h.state.clock.sessionId = 'test-session';
+    const downloads = [];
+    h.ctx.downloadText = (filename, contents) => downloads.push({filename, contents});
+    h.ctx.showCompletion();
+    const leave = {preventDefault() {this.prevented = true;}};
+    h.ctx.window.onbeforeunload(leave);
+    assert.equal(leave.prevented, true); assert.equal(leave.returnValue, '');
+    h.ctx.confirmSavedFiles(); assert.equal(h.state.savePending, true);
+    h.node('#download-csv').click();
+    assert.equal(h.node('#verify-saved-files').disabled, true);
+    assert.equal(h.state.savePending, true);
+    h.node('#download-json').click();
+    assert.equal(h.node('#verify-saved-files').disabled, false);
+    assert.equal(h.node('#confirm-saved-files').disabled, true);
+    assert.equal(h.state.savePending, true); // requesting files alone never removes protection
+    const data = JSON.parse(downloads[1].contents);
+    assert.equal(data.completion_status, endedEarly ? 'ended_early' : 'complete');
+    assert.ok(Array.isArray(data.events)); assert.ok(Array.isArray(data.trials));
+    h.node('#verify-saved-files').checked = true;
+    h.node('#verify-saved-files').listeners.change();
+    assert.equal(h.node('#confirm-saved-files').disabled, false);
+    assert.equal(h.state.savePending, true);
+    h.node('#confirm-saved-files').click();
+    assert.equal(h.state.savePending, false);
+    assert.equal(h.ctx.window.onbeforeunload, null);
+  }
+});
+
+test('earlier partial downloads and failed downloads cannot satisfy the final save checkpoint', () => {
+  const h = harness(); h.state.config = h.ctx.readConfig();
+  h.state.clock.sessionId = 'test-session';
+  h.ctx.protectUnsavedSession();
+  h.state.exportRequests = {csv: true, json: true};
+  h.ctx.showCompletion();
+  assert.equal(h.state.exportRequests.csv, false);
+  assert.equal(h.state.exportRequests.json, false);
+  h.ctx.downloadText = () => {throw new Error('Download failed');};
+  assert.throws(() => h.ctx.exportJson(), /Download failed/);
+  assert.equal(h.state.exportRequests.json, false);
+  assert.equal(h.state.savePending, true);
+  h.ctx.beginExperiment(h.state.config); // refuses to replace unsaved results
+  assert.equal(h.state.savePending, true);
+});
+
+test('testing options precede PVSAT pacing and general rest belongs to sequence settings', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('class="card battery-card"') < html.indexOf('class="card timing-card"'));
+  const timing = html.split('class="card timing-card"')[1].split('</section>')[0];
+  assert.match(timing, /PVSAT pacing parameters/);
+  assert.doesNotMatch(timing, /id="rest-duration"/);
+  assert.match(html.split('class="card sequence-card"')[1].split('</section>')[0], /id="rest-duration"/);
+});

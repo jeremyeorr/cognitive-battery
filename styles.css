@@ -1208,6 +1208,32 @@ small {
   font-size: 0.78rem !important;
 }
 
+.save-checkpoint {
+  margin-top: 24px;
+  padding: 20px;
+  border: 2px solid #b98636;
+  border-radius: 12px;
+  background: #fffbf2;
+  text-align: left;
+}
+
+.save-verification {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.save-verification input {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  margin: 0;
+}
+
+.download-grid button { width: 100%; margin: 0; }
+.save-checkpoint button:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
 @media (max-width: 920px) {
   .setup-grid {
     grid-template-columns: 1fr 1fr;

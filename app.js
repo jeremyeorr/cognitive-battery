@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.9.1-mockup";
+const APP_VERSION = "0.9.2-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const DEFAULT_TASK_ORDER = ["reaction", "pvsat", "stroop", "trail_a", "trail_b", "corsi"];
@@ -71,7 +71,46 @@ const sessionState = {
   events: [],
   eventIndex: 0,
   running: false,
+  savePending: false,
+  exportRequests: { csv: false, json: false },
 };
+
+// Downloads cannot be verified by a web page. Keep the browser's leave warning
+// until the technician explicitly verifies both files on the completion screen.
+function protectUnsavedSession() {
+  sessionState.savePending = true;
+  sessionState.exportRequests = { csv: false, json: false };
+  window.onbeforeunload = (event) => {
+    if (!sessionState.savePending) return;
+    event.preventDefault();
+    event.returnValue = "";
+    return "";
+  };
+}
+
+function updateSaveCheckpoint() {
+  if (sessionState.running) return;
+  const both = sessionState.exportRequests.csv && sessionState.exportRequests.json;
+  const check = document.querySelector("#verify-saved-files");
+  if (!check) return;
+  check.disabled = !both;
+  document.querySelector("#confirm-saved-files").disabled = !both || !check.checked || !sessionState.savePending;
+  for (const format of ["csv", "json"]) {
+    document.querySelector(`#save-${format}-status`).textContent = sessionState.exportRequests[format]
+      ? "Download requested — check the saved file." : "Download still needed.";
+  }
+}
+
+function confirmSavedFiles() {
+  if (sessionState.running || !sessionState.savePending || !sessionState.exportRequests.csv ||
+      !sessionState.exportRequests.json || !document.querySelector("#verify-saved-files").checked) return;
+  sessionState.savePending = false;
+  window.onbeforeunload = null;
+  document.querySelector("#save-checkpoint-heading").textContent = "Saved files confirmed";
+  document.querySelector("#save-checkpoint-status").textContent = "You confirmed both files are saved. You may now close this tab.";
+  document.querySelector("#confirm-saved-files").disabled = true;
+  document.querySelector("#verify-saved-files").disabled = true;
+}
 
 function hashString(value) {
   let hash = 2166136261;
@@ -1625,18 +1664,22 @@ function exportJson() {
   };
   downloadText(`${exportBaseName()}.json`, JSON.stringify(payload, null, 2), "application/json");
   logEvent("json_export_requested");
+  sessionState.exportRequests.json = true;
+  updateSaveCheckpoint();
 }
 
 function exportCsv() {
   downloadText(`${exportBaseName()}.csv`, trialsToCsv(sessionState.trials), "text/csv;charset=utf-8");
   logEvent("csv_export_requested");
+  sessionState.exportRequests.csv = true;
+  updateSaveCheckpoint();
 }
 
 function showCompletion() {
   taskClock.stop();
   document.querySelector("#session-controls").hidden = true;
   sessionState.running = false;
-  window.onbeforeunload = null;
+  protectUnsavedSession();
   logEvent(sessionState.endedEarly ? "session_ended_early" : "session_complete", { trial_count: sessionState.trials.length });
   const experimentalTrials = sessionState.trials.filter((trial) => trial.task === "pvsat" && !trial.practice && !trial.ended_early);
   const responded = experimentalTrials.filter((trial) => !trial.omission);
@@ -1651,25 +1694,34 @@ function showCompletion() {
     <section class="complete-screen">
       <div class="complete-panel">
         <p class="eyebrow">${sessionState.endedEarly ? "Session ended early · partial data" : "Session complete"}</p>
-        <h2>Data are ready</h2>
-        <p>Save both files before closing this tab. The JSON includes the full session/event log; the CSV contains task-labeled rows for every selected test.</p>
+        <h2 id="save-checkpoint-heading">Save data before leaving</h2>
+        <p id="save-checkpoint-status" role="status">These results exist only in this tab. Download both files, verify them in Downloads or Files, then confirm below.</p>
+        <p>The JSON includes the full session/event log; the CSV contains task-labeled rows for every selected test.</p>
         <div class="completion-summary" aria-label="Session summary">
           <div class="summary-stat"><strong>${experimentalTrials.length ? `${accuracy}%` : "—"}</strong><span>PVSAT accuracy</span></div>
           <div class="summary-stat"><strong>${responded.length ? `${meanRt} ms` : "—"}</strong><span>PVSAT mean RT</span></div>
           <div class="summary-stat"><strong>${experimentalTrials.length ? omissions : "—"}</strong><span>PVSAT omissions</span></div>
         </div>
         <div class="download-grid">
-          <button id="download-csv" class="secondary-button" type="button">Download trial CSV</button>
-          <button id="download-json" class="primary-button" type="button">Download full JSON</button>
+          <div><button id="download-csv" class="secondary-button" type="button">1. Download trial CSV</button><p id="save-csv-status" class="completion-note" role="status">Download still needed.</p></div>
+          <div><button id="download-json" class="primary-button" type="button">2. Download full JSON</button><p id="save-json-status" class="completion-note" role="status">Download still needed.</p></div>
+        </div>
+        <div class="save-checkpoint">
+          <label class="save-verification"><input id="verify-saved-files" type="checkbox" disabled /><span>I verified that both this session’s CSV and JSON files are saved on this device.</span></label>
+          <button id="confirm-saved-files" class="primary-button" type="button" disabled>3. Confirm files saved</button>
+          <p class="completion-note">A download click does not prove the file was saved. If you cancelled a download, download it again before confirming. Until confirmation, the browser will be asked to warn before closing, refreshing, or leaving. Some browsers, especially on iPad, may suppress that warning; force-closing the app can still lose unsaved data.</p>
         </div>
         <p class="completion-note">No study data have been uploaded or stored remotely.</p>
       </div>
     </section>`;
   document.querySelector("#download-csv").addEventListener("click", exportCsv);
   document.querySelector("#download-json").addEventListener("click", exportJson);
+  document.querySelector("#verify-saved-files").addEventListener("change", updateSaveCheckpoint);
+  document.querySelector("#confirm-saved-files").addEventListener("click", confirmSavedFiles);
 }
 
 function beginExperiment(config) {
+  if (sessionState.savePending) return;
   taskClock.reset();
   sessionState.endedEarly = false;
   sessionState.confirmingEnd = false;
@@ -1699,7 +1751,7 @@ function beginExperiment(config) {
     session_label: config.sessionLabel,
     study_condition: config.studyCondition,
   });
-  window.onbeforeunload = () => "The session data have not been exported yet.";
+  protectUnsavedSession();
 
   sessionState.jsPsych = initJsPsych({
     display_element: "experiment-root",
@@ -1791,5 +1843,7 @@ document.querySelector("#request-end").addEventListener("click", () => setPauseP
 document.querySelector("#cancel-end").addEventListener("click", () => setPausePanel(false));
 document.querySelector("#confirm-end").addEventListener("click", endSessionEarly);
 
+// Explicitly reset on page load; browsers can restore dynamic checkbox state.
+els.demoFeedback.checked = false;
 renderTaskOrder();
 updatePreview();
