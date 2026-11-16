@@ -128,6 +128,23 @@ test('length boundary requires offset plus ALL minutes and rejects unknown lengt
   assert.equal(u.searchParams.has('loop'), false);
 });
 
+test('every added or reordered video retains Tap Start in both setup previews', () => {
+  const h = harness();
+  h.ctx.addNatureVideo();
+  h.ctx.addNatureVideo();
+  h.ctx.moveSequenceEntry('nature-4', -1);
+  for (const demo of [false, true]) {
+    h.node('#demo-mode').checked = demo;
+    h.ctx.updatePreview();
+    for (const selector of ['#task-order', '#block-preview']) {
+      const rows = h.node(selector).innerHTML.match(/<li\b[^>]*>[\s\S]*?<\/li>/g)
+        .filter(row => /Nature video/.test(row));
+      assert.equal(rows.length, 4);
+      rows.forEach(row => assert.match(row, /Tap Start when ready/));
+    }
+  }
+});
+
 test('preflight waits for a manual click and actual playback; records verified duration', async () => {
   const h = harness(); const c = h.ctx.readConfig();
   h.ctx.showNatureVideoCheck(c); await h.flush();
@@ -187,6 +204,9 @@ test('three periods resume exact prior stops; pause/buffering and ready screen c
     const expected = h.state.natureCursorSeconds;
     const { p, rows } = await startPeriod(h, period);
     assert.equal(p.time, expected); assert.equal(p.playCalls, 0);
+    assert.equal(h.node('#nature-start').disabled, false);
+    assert.equal(h.node('#nature-start').textContent, 'Start nature video');
+    assert.match(h.node('#nature-status').textContent, /paused until you tap/);
     p.emit(1); // unexpected play before Start is suppressed
     assert.equal(p.state, 2);
     assert.equal(h.events.filter(e => e.event === 'block_onset').length, period - 1);

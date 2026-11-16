@@ -127,7 +127,7 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
   slot.innerHTML = `<div class="nature-content">
     ${natureIframe(block.youtubeVideoId, startPosition)}
     <button id="nature-start" class="primary-button nature-start" type="button" disabled>Loading YouTube player…</button>
-    <p id="nature-status" role="status">Preparing viewing period ${block.videoPeriod}, continuing at ${durationLabel(startPosition)}.</p>
+    <p id="nature-status" role="status">Preparing viewing period ${block.videoPeriod}. Playback will wait for you to tap Start, then resume at ${durationLabel(startPosition)}.</p>
     <div id="nature-error-export" class="download-grid" hidden>
       <button id="nature-save-csv" class="secondary-button" type="button">Save partial CSV</button>
       <button id="nature-save-json" class="secondary-button" type="button">Save partial JSON</button>
@@ -212,7 +212,7 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
         player.seekTo(startPosition, true);
         start.disabled = false;
         start.textContent = "Start nature video";
-        status.textContent = `Tap Start when ready. This period starts at ${durationLabel(startPosition)} and needs ${durationLabel(block.durationSeconds)} of video playback.`;
+        status.textContent = `Tap Start when ready. Playback is paused until you tap. This period resumes at ${durationLabel(startPosition)} and needs ${durationLabel(block.durationSeconds)} of video playback.`;
       },
       onStateChange: (event) => {
         if (stopped) return;

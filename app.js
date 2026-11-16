@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.8.1-mockup";
+const APP_VERSION = "0.8.2-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const DEFAULT_TASK_ORDER = ["reaction", "pvsat", "stroop", "trail_a", "trail_b", "corsi"];
@@ -424,7 +424,7 @@ function renderTaskOrder() {
       const isNature = entry.type === "nature";
       if (isNature) natureOrdinal += 1;
       const label = isNature ? `Nature video ${natureOrdinal}` : TASK_DEFINITIONS[entry.taskKey].label;
-      const detail = isNature ? `${durationLabel(Number(els.natureVideoDuration.value) * 60)} · ${natureOrdinal === 1 ? "tap Start when ready" : "continues from previous video"}` : TASK_DEFINITIONS[entry.taskKey].detail;
+      const detail = isNature ? `${durationLabel(Number(els.natureVideoDuration.value) * 60)} · Tap Start when ready${natureOrdinal > 1 ? " · resumes at previous stopping point" : ""}` : TASK_DEFINITIONS[entry.taskKey].detail;
       return `<li data-entry-id="${entry.id}" class="${isNature ? "nature-order-item" : ""}">
         <span class="task-order-number">${index + 1}</span>
         <span class="task-order-label"><strong>${label}</strong><small>${detail}</small></span>
@@ -474,9 +474,7 @@ function updatePreview() {
       .map((block) => {
         const label = block.type === "rest" ? "Rest" : `${block.condition}`;
         const details = {
-          nature: config.demoMode
-            ? `Short demo viewing period ${block.videoPeriod} · ${config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`
-            : `Viewing period ${block.videoPeriod} · ${block.videoPeriod > 1 ? "continues previous video" : config.natureVideoProvider === "youtube" ? "YouTube embed" : "Built-in clip"}`,
+          nature: `${config.demoMode ? "Short demo viewing" : "Viewing"} period ${block.videoPeriod} · Tap Start when ready${block.videoPeriod > 1 ? " · resumes at previous stopping point" : ""}`,
           rest: "Natural breathing",
           practice: `Guided ${config.pvsatChoiceCount}-choice practice`,
           pvsat: `${config.pvsatChoiceCount}-choice serial addition`,
