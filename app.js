@@ -1,9 +1,9 @@
 "use strict";
 
-const APP_VERSION = "0.8.0-mockup";
+const APP_VERSION = "0.8.1-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
-const DEFAULT_TASK_ORDER = ["pvsat", "stroop", "trail_a", "trail_b", "corsi", "reaction"];
+const DEFAULT_TASK_ORDER = ["reaction", "pvsat", "stroop", "trail_a", "trail_b", "corsi"];
 const TASK_DEFINITIONS = {
   pvsat: { label: "Modified PVSAT", condition: "PVSAT", detail: "Serial addition" },
   stroop: { label: "Stroop", condition: "Stroop", detail: "Executive inhibition" },
@@ -31,7 +31,6 @@ const els = {
   practiceStimulusDuration: document.querySelector("#practice-stimulus-duration"),
   practiceDuration: document.querySelector("#practice-duration"),
   practiceEnabled: document.querySelector("#practice-enabled"),
-  orderMethod: document.querySelector("#order-method"),
   demoMode: document.querySelector("#demo-mode"),
   demoFeedback: document.querySelector("#demo-feedback"),
   natureVideoUrl: document.querySelector("#nature-video-url"),
@@ -59,8 +58,8 @@ const els = {
 
 let natureSequenceId = 2;
 let sequenceEntries = [
-  ...DEFAULT_TASK_ORDER.map((taskKey) => ({ id: `task-${taskKey}`, type: "task", taskKey })),
   { id: "nature-1", type: "nature" },
+  ...DEFAULT_TASK_ORDER.map((taskKey) => ({ id: `task-${taskKey}`, type: "task", taskKey })),
   { id: "nature-2", type: "nature" },
 ];
 
@@ -110,16 +109,6 @@ function parsePacingValues(raw) {
     throw new Error("Enter comma-separated pacing intervals between 0.5 and 10 seconds.");
   }
   return [...new Set(values)];
-}
-
-function orderedPaces(paces, method, seed) {
-  if (method === "reverse") return [...paces].reverse();
-  if (method === "rotate") {
-    const offset = seed % paces.length;
-    return [...paces.slice(offset), ...paces.slice(0, offset)];
-  }
-  if (method === "random") return shuffled(paces, mulberry32(seed));
-  return [...paces];
 }
 
 function parseYouTubeVideoId(rawValue) {
@@ -269,7 +258,7 @@ function readConfig() {
   const youtubeVideoId = parseYouTubeVideoId(natureVideoInputUrl);
   const youtubeStartSeconds = youtubeVideoId ? parseYouTubeStartSeconds(natureVideoInputUrl) : 0;
   const natureVideoProvider = youtubeVideoId ? "youtube" : "built-in";
-  const paces = orderedPaces(pacingSeconds, els.orderMethod.value, seed);
+  const paces = [...pacingSeconds];
   const practiceEnabled = els.practiceEnabled.checked;
   const pvsatChoiceCount = Number(els.pvsatChoiceCount.value);
   const selectedTasks = {
@@ -387,7 +376,7 @@ function readConfig() {
     natureVideoSource: youtubeVideoId ? natureVideoInputUrl : NATURE_VIDEO_SOURCE,
     youtubeVideoId,
     youtubeStartSeconds,
-    orderMethod: els.orderMethod.value,
+    orderMethod: "fixed",
     demoMode,
     demoFeedback: demoMode && els.demoFeedback.checked,
     seed,

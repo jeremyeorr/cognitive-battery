@@ -11,12 +11,13 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - A configurable slow practice block, initially 5.0-second pacing with a 1.0-second digit display, immediately before the experimental PVSAT conditions.
 - Separate duration controls for every test, initially 3 minutes. Complete attempts continue until the configured minimum time is reached or surpassed.
 - Thirty-second Rest blocks by default, inserted between testing conditions.
-- Convenient arrow-button reordering of the selected cognitive tests, plus fixed, reversed, rotated, or seeded-random PVSAT pacing order.
-- Two muted nature-video periods follow the cognitive battery by default (6 minutes each). Duration per period is configurable; any number of periods can be added, reordered, or removed. Each waits for an explicit Start tap.
+- Convenient arrow-button reordering of the selected cognitive tests. PVSAT pacing intervals run in the order entered (4, 3, then 2 seconds by default).
+- The default sequence is nature video → simple reaction time → PVSAT → Stroop → Trail Making A → Trail Making B → Corsi → nature video, with the existing rest and PVSAT practice blocks retained.
+- Two muted nature-video periods bracket the cognitive battery by default (6 minutes each). Duration per period is configurable; any number of periods can be added, reordered, or removed. Each waits for an explicit Start tap.
 - YouTube periods continue from the preceding period's observed media position, including across intervening tasks. Viewing duration follows media time, so pauses and buffering do not consume viewing time. No YouTube looping or silent substitute footage is used.
 - Before the battery, a coordinator playback/length check requires enough footage for the starting offset plus **all configured nature minutes**, even in demo mode. For the default link at 12 seconds and two 6-minute periods, the video must extend through **12 minutes 12 seconds**. Unavailable, unverified, or too-short videos block launch. Runtime errors stop progression and offer partial-data downloads.
 - An optional YouTube watch, share, Shorts, or embed link can supply every nature-video period. The default link starts at 12 seconds; clearing the field restores the built-in clip. YouTube playback uses its privacy-enhanced embedded player and requires network access.
-- A short demo mode and optional demo-only answer feedback.
+- A short demo mode and optional demo-only answer feedback, off by default.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
 - Functioning touchscreen demos for Stroop, repeated Trail Making A/B attempts, Corsi spatial span, and simple reaction time.
 - Corsi returns to its starting span after an incorrect sequence and continues until the configured minimum duration is met.

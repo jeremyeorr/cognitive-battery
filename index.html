@@ -104,15 +104,6 @@
               <h2 id="sequence-heading">Block order</h2>
             </div>
           </div>
-          <label>
-            <span>PVSAT pacing order</span>
-            <select id="order-method" name="orderMethod">
-              <option value="fixed">Listed order</option>
-              <option value="reverse">Reverse order</option>
-              <option value="rotate">Rotate by session</option>
-              <option value="random">Seeded random order</option>
-            </select>
-          </label>
           <label class="nature-source-field">
             <span>YouTube nature-video link <em>optional</em></span>
             <input
@@ -166,7 +157,7 @@
               <small>Briefly marks selections as correct or incorrect</small>
             </div>
             <label class="switch" aria-label="Enable demo feedback">
-              <input id="demo-feedback" name="demoFeedback" type="checkbox" checked />
+              <input id="demo-feedback" name="demoFeedback" type="checkbox" />
               <span aria-hidden="true"></span>
             </label>
           </div>
@@ -269,6 +260,6 @@
     <noscript>This experiment requires JavaScript.</noscript>
     <script src="https://unpkg.com/jspsych@8.3.0"></script>
     <script src="nature-video.js?v=0.8.0"></script>
-    <script src="app.js?v=0.8.0"></script>
+    <script src="app.js?v=0.8.1"></script>
   </body>
 </html>

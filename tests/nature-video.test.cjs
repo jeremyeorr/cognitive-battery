@@ -22,7 +22,6 @@ function harness() {
     node('#' + id[1]).value = tag[0].match(/value="([^"]*)"/)?.[1] || '';
     node('#' + id[1]).checked = /\bchecked\b/.test(tag[0]);
   }
-  node('#order-method').value = 'fixed';
   node('#pvsat-choice-count').value = '3';
   const timers = new Map();
   const intervals = new Map();
@@ -74,14 +73,29 @@ function harness() {
   };
 }
 
-test('default sequence ends with two 6-minute videos and includes link offset', () => {
+test('default sequence brackets the requested task order with two 6-minute videos', () => {
   const h = harness(); const c = h.ctx.readConfig();
   assert.equal(c.natureVideoCount, 2);
   assert.equal(c.natureVideoSeconds, 360);
-  assert.deepEqual(Array.from(c.blocks.slice(-2), b => b.type), ['nature', 'nature']);
-  assert.equal(c.blocks.find(b => b.type === 'nature'), c.blocks.at(-2));
+  assert.equal(c.blocks[0].type, 'nature');
+  assert.equal(c.blocks.at(-1).type, 'nature');
+  assert.deepEqual(Array.from(c.sequenceEntries, e => e.type === 'nature' ? 'nature' : e.taskKey),
+    ['nature', 'reaction', 'pvsat', 'stroop', 'trail_a', 'trail_b', 'corsi', 'nature']);
+  assert.deepEqual(Array.from(c.blocks.filter(b => !['rest', 'practice'].includes(b.type)), b => b.type),
+    ['nature', 'reaction', 'pvsat', 'pvsat', 'pvsat', 'stroop', 'trail_a', 'trail_b', 'corsi', 'nature']);
   assert.equal(c.requiredYoutubeEndSeconds, 732);
   assert.equal(c.youtubeStartSeconds, 12);
+});
+
+test('demo feedback defaults off but can be enabled; pacing follows entered order without a selector', () => {
+  const h = harness();
+  h.node('#demo-mode').checked = true;
+  assert.equal(h.ctx.readConfig().demoFeedback, false);
+  h.node('#demo-feedback').checked = true;
+  assert.equal(h.ctx.readConfig().demoFeedback, true);
+  h.node('#pacing-values').value = '2, 4, 3';
+  assert.deepEqual(Array.from(h.ctx.readConfig().blocks.filter(b => b.type === 'pvsat'), b => b.paceSeconds), [2, 4, 3]);
+  assert.doesNotMatch(fs.readFileSync(path.join(root, 'index.html'), 'utf8'), /id="order-method"/);
 });
 
 test('add/remove/reorder and duration changes recompute total, including in demo', () => {
