@@ -88,7 +88,7 @@ function startBlockWithInstructions(displayElement, trial, run) {
   const slot = displayElement.querySelector(".screen-slot");
   slot.innerHTML = `<section class="test-instructions"><p class="eyebrow">Before this test</p>
     <h2>${instruction[0]}</h2><p>${instruction[1]}</p>
-    <p class="instruction-note">Stay seated and breathe naturally. Use Pause session whenever you need a break.</p>
+    <p class="instruction-note">Stay seated and breathe naturally.</p>
     <button id="start-test" type="button" class="primary-button">Start ${instruction[0]}</button></section>`;
   logEvent("instructions_onset", sessionState.currentBlock);
   slot.querySelector("#start-test").addEventListener("click", () => {

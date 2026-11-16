@@ -280,6 +280,7 @@ test('all cognitive blocks wait at their instructions; rest and video do not gai
     if (['rest', 'nature'].includes(block.type)) { assert.equal(started, 1); continue; }
     assert.equal(started, 0);
     assert.match(h.node('.screen-slot').innerHTML, /Before this test/);
+    assert.doesNotMatch(h.node('.screen-slot').innerHTML, /Pause session|need a break/i);
     h.tick(30000); assert.equal(started, 0);
     h.node('#start-test').click(); assert.equal(started, 1);
   }

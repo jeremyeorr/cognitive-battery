@@ -11,7 +11,7 @@
     <title>Respiratory Cognitive Battery</title>
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css" />
-    <link rel="stylesheet" href="styles.css?v=0.9.0" />
+    <link rel="stylesheet" href="styles.css?v=0.9.1" />
   </head>
   <body>
     <main id="setup-root" class="app-shell">
@@ -256,7 +256,7 @@
     </main>
 
     <main id="experiment-root" class="experiment-root" hidden></main>
-    <div id="session-controls" hidden><button id="pause-session" type="button" class="secondary-button">Pause session</button></div>
+    <div id="session-controls" hidden><button id="pause-session" type="button" class="secondary-button" aria-label="Technician: pause session" title="Technician control">Pause</button></div>
     <section id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-heading" hidden>
       <div class="ready-panel">
         <h2 id="pause-heading">Session paused</h2>
@@ -275,8 +275,8 @@
 
     <noscript>This experiment requires JavaScript.</noscript>
     <script src="https://unpkg.com/jspsych@8.3.0"></script>
-    <script src="session-control.js?v=0.9.0"></script>
+    <script src="session-control.js?v=0.9.1"></script>
     <script src="nature-video.js?v=0.9.0"></script>
-    <script src="app.js?v=0.9.0"></script>
+    <script src="app.js?v=0.9.1"></script>
   </body>
 </html>
