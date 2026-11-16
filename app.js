@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.9.2-mockup";
+const APP_VERSION = "0.9.3-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const DEFAULT_TASK_ORDER = ["reaction", "pvsat", "stroop", "trail_a", "trail_b", "corsi"];
@@ -1792,12 +1792,7 @@ function showReadyScreen(config) {
     </section>`;
   document.querySelector("#begin-session").addEventListener(
     "click",
-    () => {
-      if (document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
-      }
-      beginExperiment(config);
-    },
+    () => beginExperiment(config),
     { once: true },
   );
 }

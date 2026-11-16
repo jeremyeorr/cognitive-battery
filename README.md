@@ -19,6 +19,7 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - An optional YouTube watch, share, Shorts, or embed link can supply every nature-video period. The default link starts at 12 seconds; clearing the field restores the built-in clip. YouTube playback uses its privacy-enhanced embedded player and requires network access.
 - A short demo mode and optional demo-only answer feedback, off by default.
 - Short task-specific instructions appear before every cognitive block (including PVSAT practice and each pacing condition). Tap Start to begin; instruction time is not counted as test time.
+- Sessions stay in the normal browser view; the app does not request fullscreen, avoiding browser-generated fullscreen exit notices over task targets.
 - A small technician-only Pause control at the top right is available during tests, rests, instructions, and videos. Participant instructions do not invite pausing. Pause hides the task, blocks responses, suspends task timers, and pauses video playback. Resume continues with the remaining time, without skipping stimuli. Video awaiting its first Start tap stays waiting after Resume.
 - The pause screen offers End session early, followed by a separate confirmation. Cancelling stays paused. Confirming stops the remaining battery and opens the CSV/JSON download screen, labelled as partial data; download both files before closing the tab.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
