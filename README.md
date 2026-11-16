@@ -18,6 +18,9 @@ This is a first working mockup of a static, iPad-friendly jsPsych 8 cognitive-ta
 - Before the battery, a coordinator playback/length check requires enough footage for the starting offset plus **all configured nature minutes**, even in demo mode. For the default link at 12 seconds and two 6-minute periods, the video must extend through **12 minutes 12 seconds**. Unavailable, unverified, or too-short videos block launch. Runtime errors stop progression and offer partial-data downloads.
 - An optional YouTube watch, share, Shorts, or embed link can supply every nature-video period. The default link starts at 12 seconds; clearing the field restores the built-in clip. YouTube playback uses its privacy-enhanced embedded player and requires network access.
 - A short demo mode and optional demo-only answer feedback, off by default.
+- Short task-specific instructions appear before every cognitive block (including PVSAT practice and each pacing condition). Tap Start to begin; instruction time is not counted as test time.
+- Pause session is available during tests, rests, instructions, and videos. It hides the task, blocks responses, suspends task timers, and pauses video playback. Resume continues with the remaining time, without skipping stimuli. Video awaiting its first Start tap stays waiting after Resume.
+- The pause screen offers End session early, followed by a separate confirmation. Cancelling stays paused. Confirming stops the remaining battery and opens the CSV/JSON download screen, labelled as partial data; download both files before closing the tab.
 - Modified PVSAT with configurable 3- or 4-choice touchscreen responses. Answers are sorted numerically, while correct positions are balanced in shuffled groups.
 - Functioning touchscreen demos for Stroop, repeated Trail Making A/B attempts, Corsi spatial span, and simple reaction time.
 - Corsi returns to its starting span after an incorrect sequence and continues until the configured minimum duration is met.
@@ -61,6 +64,8 @@ Nature-video block summaries include the media start/end positions and played du
 Run the local regression checks with `node --test tests/nature-video.test.cjs`.
 
 High-resolution relative times use `performance.now()`. Wall-clock/ISO times are derived from the session's paired monotonic and Unix clock anchors.
+
+Session pause/resume and early-end events preserve real monotonic/ISO timestamps for synchronization. Cognitive durations and RTs exclude time explicitly paused; event `active_relative_ms` is the pause-adjusted session time. PVSAT `pause_interrupted` and other tasks' conservative `block_pause_interrupted` flags identify affected data. Pauses can alter cognitive performance even when timing is corrected; exclude or review affected observations according to the study protocol. Instruction onset/offset events are separate from test onset/offset. Early-end exports retain completed responses, available in-progress PVSAT/Corsi data, and an interrupted-block summary; they do not treat an unfinished response window as an ordinary omission.
 
 ## Important mockup limitations
 

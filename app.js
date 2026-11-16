@@ -1,6 +1,6 @@
 "use strict";
 
-const APP_VERSION = "0.8.2-mockup";
+const APP_VERSION = "0.9.0-mockup";
 const JSPsych_VERSION = "8.3.0";
 const NATURE_VIDEO_SOURCE = "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
 const DEFAULT_TASK_ORDER = ["reaction", "pvsat", "stroop", "trail_a", "trail_b", "corsi"];
@@ -507,12 +507,15 @@ function relativeToIso(relativeMs) {
 
 function logEvent(event, details = {}) {
   const relativeMs = relativeNow();
+  if (event === "block_onset") sessionState.blockOnset = relativeMs;
   sessionState.events.push({
     event_index: ++sessionState.eventIndex,
     event,
     relative_ms: round(relativeMs, 3),
     unix_ms: round(sessionState.clock.unixStart + relativeMs, 3),
     iso_timestamp: relativeToIso(relativeMs),
+    active_relative_ms: round(taskNow() - sessionState.clock.performanceStart),
+    pause_count: taskClock.periods.length + Number(taskClock.paused),
     ...details,
   });
 }
@@ -524,8 +527,8 @@ function round(value, decimals = 3) {
 }
 
 function waitUntil(targetPerformanceTime, callback) {
-  const delay = Math.max(0, targetPerformanceTime - performance.now());
-  return window.setTimeout(callback, delay);
+  const delay = Math.max(0, targetPerformanceTime - taskNow());
+  return taskTimeout(callback, delay);
 }
 
 function generateDigits(count, random) {
@@ -612,13 +615,15 @@ class FixedClockBlockPlugin {
   };
 
   trial(displayElement, trial) {
-    if (trial.block.type === "rest") {
-      this.runRest(displayElement, trial);
-    } else if (trial.block.type === "nature") {
-      this.runNature(displayElement, trial);
-    } else {
-      this.runPvsat(displayElement, trial);
-    }
+    startBlockWithInstructions(displayElement, trial, () => {
+      if (trial.block.type === "rest") {
+        this.runRest(displayElement, trial);
+      } else if (trial.block.type === "nature") {
+        this.runNature(displayElement, trial);
+      } else {
+        this.runPvsat(displayElement, trial);
+      }
+    });
   }
 
   runRest(displayElement, trial) {
@@ -634,7 +639,7 @@ class FixedClockBlockPlugin {
       </div>`;
 
     const scheduledStartMs = relativeNow();
-    const start = performance.now();
+    const start = taskNow();
     logEvent("block_onset", {
       block: blockNumber,
       block_type: "rest",
@@ -643,7 +648,7 @@ class FixedClockBlockPlugin {
     });
 
     waitUntil(start + block.durationSeconds * 1000, () => {
-      const actualDuration = performance.now() - start;
+      const actualDuration = taskNow() - start;
       logEvent("block_offset", {
         block: blockNumber,
         block_type: "rest",
@@ -695,28 +700,46 @@ class FixedClockBlockPlugin {
       video_source: block.videoSource, playback_mode: "looping_demo",
       media_time_seconds: round(video.currentTime),
     });
+    let resumePlayback = false;
+    sessionState.media = {
+      pause: () => { resumePlayback = !video.paused; video.pause(); },
+      resume: () => {
+        if (resumePlayback && !finished) video.play().catch(() => {
+          startButton.hidden = false; startButton.disabled = false;
+          status.textContent = "Tap Start to resume video playback.";
+        });
+      },
+      dispose: () => { finished = true; clearTaskTimer(interval); video.pause(); },
+    };
+    sessionState.abortCurrent = () => {
+      if (!started || finished) return;
+      const mediaDetails = { ...sourceDetails(), completion_status: "ended_early" };
+      logEvent("video_playback_offset", mediaDetails);
+      Object.assign(sessionState.currentBlock, mediaDetails);
+    };
     video.addEventListener("loadedmetadata", () => {
       if (Number.isFinite(video.duration) && video.duration > 0) {
         video.currentTime = (sessionState.nativeNatureCursorSeconds || 0) % video.duration;
       }
     });
     const stopSegment = () => {
-      if (activeStart !== null) playedMs += performance.now() - activeStart;
+      if (activeStart !== null) playedMs += taskNow() - activeStart;
       activeStart = null;
     };
     video.addEventListener("playing", () => {
       if (finished) return;
-      activeStart = performance.now();
+      if (taskClock.paused || taskClock.stopped) { video.pause(); return; }
+      activeStart = taskNow();
       startButton.hidden = true;
       if (started) return;
       started = true;
       logEvent("block_onset", sourceDetails());
       logEvent("video_playback_onset", sourceDetails());
-      interval = window.setInterval(() => {
-        const elapsed = playedMs + (activeStart === null ? 0 : performance.now() - activeStart);
+      interval = taskInterval(() => {
+        const elapsed = playedMs + (activeStart === null ? 0 : taskNow() - activeStart);
         if (elapsed < block.durationSeconds * 1000 || finished) return;
         finished = true;
-        window.clearInterval(interval);
+        clearTaskTimer(interval);
         video.pause();
         sessionState.nativeNatureCursorSeconds = video.currentTime;
         const row = { ...sourceDetails(), record_type: "block_summary",
@@ -734,7 +757,7 @@ class FixedClockBlockPlugin {
     });
     video.addEventListener("error", () => {
       stopSegment();
-      window.clearInterval(interval);
+      clearTaskTimer(interval);
       status.textContent = "The demo clip could not load. Save partial data before reloading.";
       startButton.hidden = true;
       logEvent("video_playback_error", sourceDetails());
@@ -745,6 +768,7 @@ class FixedClockBlockPlugin {
       status.after(save);
     });
     startButton.addEventListener("click", () => {
+      if (taskClock.paused || taskClock.stopped) return;
       startButton.disabled = true;
       video.play().catch(() => {
         startButton.disabled = false;
@@ -771,7 +795,7 @@ class FixedClockBlockPlugin {
     while (correctPositions.length < digitCount - 1) {
       correctPositions.push(...shuffled(Array.from({ length: optionCount }, (_, index) => index), blockRandom));
     }
-    const blockStartPerformance = performance.now();
+    const blockStartPerformance = taskNow();
     const blockStartRelative = relativeNow();
     let activeRecord = null;
     let activeToken = null;
@@ -795,6 +819,8 @@ class FixedClockBlockPlugin {
         activeRecord.correct = false;
       }
       activeRecord.finalized = true;
+      activeRecord.response_deadline_relative_ms = round(activeRecord.response_deadline_active_ms + taskClock.totalPaused - sessionState.clock.performanceStart);
+      activeRecord.pause_interrupted = unpausedElapsed(activeRecord.actual_onset_relative_ms, relativeNow()) < relativeNow() - activeRecord.actual_onset_relative_ms;
       activeRecord.response_window_closed_ms = round(relativeNow());
       sessionState.trials.push({ ...activeRecord });
       // jsPsych 8's internal data.write() accepts a jsPsych Trial object, not
@@ -806,6 +832,7 @@ class FixedClockBlockPlugin {
     };
 
     const handleAnswer = (event) => {
+      if (taskClock.paused || taskClock.stopped) return;
       const button = event.target.closest(".answer-button");
       if (!button || !activeRecord || button.dataset.token !== activeToken || activeRecord.selected_option !== null) return;
       const nowRelative = relativeNow();
@@ -813,8 +840,8 @@ class FixedClockBlockPlugin {
       activeRecord.selected_option = selected;
       activeRecord.response_relative_ms = round(nowRelative);
       activeRecord.response_iso_timestamp = relativeToIso(nowRelative);
-      activeRecord.rt_ms = round(nowRelative - activeRecord.actual_onset_relative_ms);
-      activeRecord.late_response = nowRelative > activeRecord.response_deadline_relative_ms;
+      activeRecord.rt_ms = round(unpausedElapsed(activeRecord.actual_onset_relative_ms, nowRelative));
+      activeRecord.late_response = taskNow() > activeRecord.response_deadline_active_ms;
       activeRecord.omission = false;
       activeRecord.correct = selected === activeRecord.correct_sum;
       displayElement.querySelectorAll(".answer-button").forEach((choice) => {
@@ -837,6 +864,15 @@ class FixedClockBlockPlugin {
 
     responseArea.addEventListener("pointerdown", handleAnswer);
     responseArea.addEventListener("click", handleAnswer);
+    sessionState.abortCurrent = () => {
+      if (!activeRecord || activeRecord.finalized) return;
+      sessionState.trials.push({ ...activeRecord, finalized: true, ended_early: true,
+        pause_interrupted: true,
+        response_window_closed_ms: round(relativeNow()), response_deadline_relative_ms: null,
+        omission: activeRecord.selected_option === null ? null : false,
+        correct: activeRecord.selected_option === null ? null : activeRecord.correct });
+      activeRecord = null;
+    };
 
     logEvent("block_onset", {
       block: blockNumber,
@@ -853,13 +889,13 @@ class FixedClockBlockPlugin {
     const presentDigit = (index) => {
       finalizeRecord();
       const scheduledPerformance = blockStartPerformance + index * paceMs;
-      const scheduledRelative = blockStartRelative + index * paceMs;
+      const scheduledRelative = scheduledPerformance + taskClock.totalPaused - sessionState.clock.performanceStart;
       const actualRelative = relativeNow();
       const currentDigit = digits[index];
       digitElement.textContent = String(currentDigit);
       digitElement.classList.add("is-visible");
 
-      if (digitHideTimer) window.clearTimeout(digitHideTimer);
+      if (digitHideTimer) clearTaskTimer(digitHideTimer);
       digitHideTimer = waitUntil(scheduledPerformance + stimulusMs, () => {
         digitElement.classList.remove("is-visible");
         logEvent("digit_offset", {
@@ -867,7 +903,7 @@ class FixedClockBlockPlugin {
           condition: block.condition,
           digit_index: index + 1,
           digit: currentDigit,
-          scheduled_relative_ms: round(scheduledRelative + stimulusMs),
+          scheduled_relative_ms: round(scheduledPerformance + stimulusMs + taskClock.totalPaused - sessionState.clock.performanceStart),
         });
       });
 
@@ -934,6 +970,7 @@ class FixedClockBlockPlugin {
         actual_onset_relative_ms: round(actualRelative),
         onset_error_ms: round(actualRelative - scheduledRelative),
         response_deadline_relative_ms: round(scheduledRelative + paceMs),
+        response_deadline_active_ms: scheduledPerformance + paceMs,
         response_relative_ms: null,
         onset_iso_timestamp: relativeToIso(actualRelative),
         response_iso_timestamp: null,
@@ -957,10 +994,10 @@ class FixedClockBlockPlugin {
 
     waitUntil(blockStartPerformance + scheduledDurationMs, () => {
       finalizeRecord();
-      if (digitHideTimer) window.clearTimeout(digitHideTimer);
+      if (digitHideTimer) clearTaskTimer(digitHideTimer);
       responseArea.removeEventListener("pointerdown", handleAnswer);
       responseArea.removeEventListener("click", handleAnswer);
-      const actualDuration = performance.now() - blockStartPerformance;
+      const actualDuration = taskNow() - blockStartPerformance;
       logEvent("block_offset", {
         block: blockNumber,
         block_type: block.type,
@@ -992,6 +1029,7 @@ function taskRowBase(block, blockNumber, blockTrialNumber, recordType) {
   const config = sessionState.config;
   return {
     record_type: recordType,
+    block_pause_interrupted: sessionState.blockOnset != null && unpausedElapsed(sessionState.blockOnset, relativeNow()) < relativeNow() - sessionState.blockOnset,
     app_version: APP_VERSION,
     jspsych_version: JSPsych_VERSION,
     study_name: config.studyName,
@@ -1041,11 +1079,11 @@ class BatteryTaskPlugin {
       corsi: () => this.runCorsi(displayElement, trial),
       reaction: () => this.runReaction(displayElement, trial),
     };
-    runners[trial.block.type]();
+    startBlockWithInstructions(displayElement, trial, runners[trial.block.type]);
   }
 
   startTaskBlock(block, blockNumber, extra = {}) {
-    const startPerformance = performance.now();
+    const startPerformance = taskNow();
     const startRelative = relativeNow();
     logEvent("block_onset", {
       block: blockNumber,
@@ -1060,7 +1098,7 @@ class BatteryTaskPlugin {
   }
 
   finishTaskBlock(block, blockNumber, clock, summary = {}) {
-    const actualDuration = performance.now() - clock.startPerformance;
+    const actualDuration = taskNow() - clock.startPerformance;
     const targetDuration = block.durationSeconds * 1000;
     logEvent("block_offset", {
       block: blockNumber,
@@ -1140,7 +1178,7 @@ class BatteryTaskPlugin {
 
     const beginTrial = () => {
       if (finished) return;
-      if (performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
+      if (taskNow() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish();
         return;
       }
@@ -1166,6 +1204,7 @@ class BatteryTaskPlugin {
     };
 
     const respond = (event) => {
+      if (taskClock.paused || taskClock.stopped) return;
       const button = event.target.closest(".stroop-button");
       if (!button || !active || finished) return;
       const nowRelative = relativeNow();
@@ -1178,15 +1217,15 @@ class BatteryTaskPlugin {
         congruent: active.congruent,
         selected_color: selected,
         correct,
-        rt_ms: round(nowRelative - active.onsetRelative),
+        rt_ms: round(unpausedElapsed(active.onsetRelative, nowRelative)),
         omission: false,
         onset_relative_ms: round(active.onsetRelative),
         response_relative_ms: round(nowRelative),
       });
-      logEvent("response", { block: blockNumber, task: block.task, trial_number: trialIndex, correct, rt_ms: round(nowRelative - active.onsetRelative) });
+      logEvent("response", { block: blockNumber, task: block.task, trial_number: trialIndex, correct, rt_ms: round(unpausedElapsed(active.onsetRelative, nowRelative)) });
       active = null;
       choicesElement.querySelectorAll("button").forEach((choice) => { choice.disabled = true; });
-      window.setTimeout(beginTrial, 250);
+      taskTimeout(beginTrial, 250);
     };
 
     choicesElement.addEventListener("pointerdown", respond);
@@ -1260,7 +1299,7 @@ class BatteryTaskPlugin {
 
     const beginAttempt = () => {
       if (finished) return;
-      if (attemptNumber > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
+      if (attemptNumber > 0 && taskNow() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish(true);
         return;
       }
@@ -1274,6 +1313,7 @@ class BatteryTaskPlugin {
     };
 
     board.addEventListener("pointerdown", (event) => {
+      if (taskClock.paused || taskClock.stopped) return;
       const node = event.target.closest(".trail-node");
       if (!node || finished) return;
       tapIndex += 1;
@@ -1289,14 +1329,14 @@ class BatteryTaskPlugin {
         selected_target: labels[selectedIndex],
         correct,
         cumulative_errors: errors,
-        rt_ms: round(nowRelative - clock.startRelative),
-        intertap_rt_ms: round(nowRelative - lastTapRelative),
+        rt_ms: round(unpausedElapsed(clock.startRelative, nowRelative)),
+        intertap_rt_ms: round(unpausedElapsed(lastTapRelative, nowRelative)),
         response_relative_ms: round(nowRelative),
       });
       lastTapRelative = nowRelative;
       if (!correct) {
         node.classList.add("is-error");
-        window.setTimeout(() => node.classList.remove("is-error"), 250);
+        taskTimeout(() => node.classList.remove("is-error"), 250);
         return;
       }
       if (lastCorrectElement) drawLine(lastCorrectElement, node);
@@ -1307,7 +1347,7 @@ class BatteryTaskPlugin {
       if (targetIndex === labels.length) {
         completedAttempts += 1;
         attemptStatus.textContent = `Attempt ${attemptNumber} complete`;
-        window.setTimeout(beginAttempt, 400);
+        taskTimeout(beginAttempt, 400);
       }
     });
 
@@ -1339,7 +1379,7 @@ class BatteryTaskPlugin {
     let accepting = false;
     let finished = false;
 
-    const delay = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+    const delay = (milliseconds) => new Promise((resolve) => taskTimeout(resolve, milliseconds));
     const finish = () => {
       if (finished) return;
       finished = true;
@@ -1353,8 +1393,8 @@ class BatteryTaskPlugin {
     };
 
     const presentNext = async () => {
-      if (finished) return;
-      if (sequenceTrial > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
+      if (finished || taskClock.stopped) return;
+      if (sequenceTrial > 0 && taskNow() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish();
         return;
       }
@@ -1369,7 +1409,7 @@ class BatteryTaskPlugin {
       prompt.textContent = `Watch ${spanLength} locations`;
       await delay(500);
       for (const index of sequence) {
-        if (finished) return;
+        if (finished || taskClock.stopped) return;
         const blockElement = grid.querySelector(`[data-index="${index}"]`);
         blockElement.classList.add("is-lit");
         await delay(550);
@@ -1382,12 +1422,13 @@ class BatteryTaskPlugin {
     };
 
     grid.addEventListener("pointerdown", (event) => {
+      if (taskClock.paused || taskClock.stopped) return;
       const blockElement = event.target.closest(".corsi-tile");
       if (!blockElement || !accepting || !active || finished) return;
       const selected = Number(blockElement.dataset.index);
       active.responses.push(selected);
       blockElement.classList.add("is-pressed");
-      window.setTimeout(() => blockElement.classList.remove("is-pressed"), 160);
+      taskTimeout(() => blockElement.classList.remove("is-pressed"), 160);
       if (active.responses.length < active.sequence.length) return;
       accepting = false;
       const correct = active.sequence.every((value, index) => value === active.responses[index]);
@@ -1399,7 +1440,7 @@ class BatteryTaskPlugin {
         presented_sequence: JSON.stringify(active.sequence.map((value) => value + 1)),
         selected_sequence: JSON.stringify(active.responses.map((value) => value + 1)),
         correct,
-        rt_ms: round(nowRelative - active.responseStart),
+        rt_ms: round(unpausedElapsed(active.responseStart, nowRelative)),
         response_relative_ms: round(nowRelative),
       });
       if (correct) {
@@ -1412,9 +1453,18 @@ class BatteryTaskPlugin {
         prompt.textContent = `Incorrect — restarting at ${spanLengths[0]} locations`;
       }
       sequenceTrial += 1;
-      window.setTimeout(presentNext, 600);
+      active = null;
+      taskTimeout(presentNext, 600);
     });
 
+    sessionState.abortCurrent = () => {
+      if (!active) return;
+      saveTaskRow({ ...taskRowBase(block, blockNumber, sequenceTrial + 1, "corsi_sequence"),
+        ended_early: true, correct: null, omission: null,
+        presented_sequence: JSON.stringify(active.sequence.map(value => value + 1)),
+        selected_sequence: JSON.stringify(active.responses.map(value => value + 1)) });
+      finished = true;
+    };
     presentNext();
   }
 
@@ -1444,13 +1494,13 @@ class BatteryTaskPlugin {
     const finish = () => {
       if (finished) return;
       finished = true;
-      if (responseTimeout) window.clearTimeout(responseTimeout);
+      if (responseTimeout) clearTaskTimer(responseTimeout);
       this.finishTaskBlock(block, blockNumber, clock, { completed_trials: trialIndex });
     };
 
     const beginTrial = () => {
       if (finished) return;
-      if (trialIndex > 0 && performance.now() - clock.startPerformance >= block.durationSeconds * 1000) {
+      if (trialIndex > 0 && taskNow() - clock.startPerformance >= block.durationSeconds * 1000) {
         finish();
         return;
       }
@@ -1460,13 +1510,13 @@ class BatteryTaskPlugin {
       fixation.hidden = false;
       const foreperiodMs = Math.round((config.demoMode ? 800 : 1000) + random() * (config.demoMode ? 900 : 1500));
       active = { foreperiodMs, targetOnset: null };
-      window.setTimeout(() => {
+      taskTimeout(() => {
         if (finished || !active) return;
         active.targetOnset = relativeNow();
         targetVisible = true;
         fixation.hidden = true;
         target.classList.add("is-visible");
-        responseTimeout = window.setTimeout(() => {
+        responseTimeout = taskTimeout(() => {
           if (!active || finished) return;
           saveTaskRow({
             ...taskRowBase(block, blockNumber, trialIndex, "reaction_trial"),
@@ -1478,12 +1528,13 @@ class BatteryTaskPlugin {
             rt_ms: null,
           });
           active = null;
-          window.setTimeout(beginTrial, 400);
+          taskTimeout(beginTrial, 400);
         }, 2000);
       }, foreperiodMs);
     };
 
     field.addEventListener("pointerdown", (event) => {
+      if (taskClock.paused || taskClock.stopped) return;
       if (!active || finished) return;
       const nowRelative = relativeNow();
       if (!targetVisible || !event.target.closest(".reaction-target")) {
@@ -1498,7 +1549,7 @@ class BatteryTaskPlugin {
           response_relative_ms: round(nowRelative),
         });
       } else {
-        if (responseTimeout) window.clearTimeout(responseTimeout);
+        if (responseTimeout) clearTaskTimer(responseTimeout);
         saveTaskRow({
           ...taskRowBase(block, blockNumber, trialIndex, "reaction_trial"),
           foreperiod_ms: active.foreperiodMs,
@@ -1506,7 +1557,7 @@ class BatteryTaskPlugin {
           correct: true,
           false_start: false,
           omission: false,
-          rt_ms: round(nowRelative - active.targetOnset),
+          rt_ms: round(unpausedElapsed(active.targetOnset, nowRelative)),
           response_relative_ms: round(nowRelative),
         });
       }
@@ -1514,7 +1565,7 @@ class BatteryTaskPlugin {
       targetVisible = false;
       target.classList.remove("is-visible");
       fixation.hidden = false;
-      window.setTimeout(beginTrial, 450);
+      taskTimeout(beginTrial, 450);
     });
 
     beginTrial();
@@ -1565,6 +1616,7 @@ function exportJson() {
     jspsych_version: JSPsych_VERSION,
     session_id: sessionState.clock.sessionId,
     session_started_iso: sessionState.clock.isoStart,
+    completion_status: sessionState.endedEarly ? "ended_early" : sessionState.running ? "in_progress" : "complete",
     performance_time_origin_ms: performance.timeOrigin,
     unix_start_ms: sessionState.clock.unixStart,
     config: sessionState.config,
@@ -1581,10 +1633,12 @@ function exportCsv() {
 }
 
 function showCompletion() {
+  taskClock.stop();
+  document.querySelector("#session-controls").hidden = true;
   sessionState.running = false;
   window.onbeforeunload = null;
-  logEvent("session_complete", { trial_count: sessionState.trials.length });
-  const experimentalTrials = sessionState.trials.filter((trial) => trial.task === "pvsat" && !trial.practice);
+  logEvent(sessionState.endedEarly ? "session_ended_early" : "session_complete", { trial_count: sessionState.trials.length });
+  const experimentalTrials = sessionState.trials.filter((trial) => trial.task === "pvsat" && !trial.practice && !trial.ended_early);
   const responded = experimentalTrials.filter((trial) => !trial.omission);
   const correct = responded.filter((trial) => trial.correct && !trial.late_response);
   const accuracy = responded.length ? Math.round((correct.length / responded.length) * 100) : 0;
@@ -1596,7 +1650,7 @@ function showCompletion() {
   els.experimentRoot.innerHTML = `
     <section class="complete-screen">
       <div class="complete-panel">
-        <p class="eyebrow">Session complete</p>
+        <p class="eyebrow">${sessionState.endedEarly ? "Session ended early · partial data" : "Session complete"}</p>
         <h2>Data are ready</h2>
         <p>Save both files before closing this tab. The JSON includes the full session/event log; the CSV contains task-labeled rows for every selected test.</p>
         <div class="completion-summary" aria-label="Session summary">
@@ -1616,6 +1670,10 @@ function showCompletion() {
 }
 
 function beginExperiment(config) {
+  taskClock.reset();
+  sessionState.endedEarly = false;
+  sessionState.confirmingEnd = false;
+  document.querySelector("#session-controls").hidden = false;
   // Remove the participant-ready panel before jsPsych creates its display
   // wrapper. Otherwise the running task is appended below that full-screen
   // panel and the Begin button appears to have done nothing.
@@ -1645,7 +1703,7 @@ function beginExperiment(config) {
 
   sessionState.jsPsych = initJsPsych({
     display_element: "experiment-root",
-    on_finish: showCompletion,
+    on_finish: () => { window.setTimeout(showCompletion, 0); },
     on_interaction_data_update: (data) => {
       logEvent("browser_interaction", { interaction: data.event });
     },
@@ -1726,6 +1784,12 @@ els.form.addEventListener("submit", (event) => {
     els.setupError.textContent = error.message;
   }
 });
+
+document.querySelector("#pause-session").addEventListener("click", pauseSession);
+document.querySelector("#resume-session").addEventListener("click", resumeSession);
+document.querySelector("#request-end").addEventListener("click", () => setPausePanel(true));
+document.querySelector("#cancel-end").addEventListener("click", () => setPausePanel(false));
+document.querySelector("#confirm-end").addEventListener("click", endSessionEarly);
 
 renderTaskOrder();
 updatePreview();

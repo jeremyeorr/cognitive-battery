@@ -142,6 +142,15 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
   let poll = null;
   let timeout = null;
   let lastState = null;
+  let resumePlayback = false;
+  sessionState.media = {
+    pause: () => {
+      resumePlayback = requested && !stopped && player && ![0, 2].includes(player.getPlayerState());
+      player?.pauseVideo?.();
+    },
+    resume: () => { if (resumePlayback && !stopped) player.playVideo(); },
+    dispose: () => { stopped = true; stopTimers(); player?.destroy(); },
+  };
   const details = () => ({
     block: blockNumber, block_type: "nature", condition: block.condition,
     video_period: block.videoPeriod, sequence_item_id: block.sequenceItemId,
@@ -150,9 +159,10 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
     media_time_seconds: round(Number(player?.getCurrentTime()) || startPosition),
     playback_mode: "youtube",
   });
-  const stopTimers = () => { window.clearInterval(poll); window.clearTimeout(timeout); };
+  const stopTimers = () => { clearTaskTimer(poll); clearTaskTimer(timeout); };
   const fail = (message) => {
     if (stopped) return;
+    if (taskClock.paused) { taskTimeout(() => fail(message), 0); return; }
     stopped = true;
     stopTimers();
     player?.pauseVideo?.();
@@ -195,17 +205,24 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
     jsPsych.finishTrial(row);
   };
   const inspect = () => {
-    if (stopped || !player) return;
+    if (stopped || !player || taskClock.paused) return;
     const position = Number(player.getCurrentTime());
     if (started && position >= plannedEnd) finish();
   };
-  timeout = window.setTimeout(() => fail("YouTube did not load in time."), 15000);
+  sessionState.abortCurrent = () => {
+    if (!started || stopped) return;
+    const mediaDetails = { ...details(), media_start_seconds: startPosition,
+      media_end_seconds: Number(player.getCurrentTime()), completion_status: "ended_early" };
+    logEvent("video_playback_offset", mediaDetails);
+    Object.assign(sessionState.currentBlock, mediaDetails);
+  };
+  timeout = taskTimeout(() => fail("YouTube did not load in time."), 15000);
   loadYouTubeIframeApi().then((YT) => {
     if (stopped) return;
     player = new YT.Player(slot.querySelector("#nature-youtube"), { events: {
       onReady: () => {
         if (stopped) return;
-        window.clearTimeout(timeout);
+        clearTaskTimer(timeout);
         player.mute();
         player.setPlaybackRate(1);
         // start= uses whole seconds; seekTo preserves the fractional resume point.
@@ -216,6 +233,10 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
       },
       onStateChange: (event) => {
         if (stopped) return;
+        if (taskClock.paused) {
+          if (event.data === YT.PlayerState.PLAYING) player.pauseVideo();
+          return;
+        }
         if (event.data !== lastState) {
           logEvent("video_player_state", { ...details(), player_state: event.data });
           lastState = event.data;
@@ -223,7 +244,7 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
         if (event.data === YT.PlayerState.PLAYING) {
           // Seeking a cued player must never bypass the explicit Start button.
           if (!requested) { player.pauseVideo(); return; }
-          window.clearTimeout(timeout);
+          clearTaskTimer(timeout);
           const remaining = sessionState.config.blocks.filter((b) => b.type === "nature" && b.videoPeriod >= block.videoPeriod)
             .reduce((sum, b) => sum + b.durationSeconds, 0);
           // Allow only sub-second polling/seek rounding at successive boundaries.
@@ -234,7 +255,7 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
             onset = performance.now();
             logEvent("block_onset", details());
             logEvent("video_playback_onset", details());
-            poll = window.setInterval(inspect, 50);
+            poll = taskInterval(inspect, 50);
           }
           start.hidden = true;
           status.textContent = "Please watch the video, remain still, and breathe naturally.";
@@ -253,7 +274,7 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
       onError: (event) => fail(`YouTube playback failed (code ${event.data}).`),
       onAutoplayBlocked: () => {
         if (stopped) return;
-        window.clearTimeout(timeout);
+        clearTaskTimer(timeout);
         start.hidden = false;
         start.disabled = false;
         start.textContent = "Tap to start video";
@@ -262,10 +283,11 @@ function runContinuousYouTubeNature(displayElement, trial, jsPsych) {
     }});
   }).catch((error) => fail(error.message));
   start.addEventListener("click", () => {
+    if (taskClock.paused || taskClock.stopped) return;
     requested = true;
     start.disabled = true;
     start.textContent = "Starting…";
-    timeout = window.setTimeout(() => fail("Video playback did not start in time."), 20000);
+    timeout = taskTimeout(() => fail("Video playback did not start in time."), 20000);
     player.playVideo();
   });
 }

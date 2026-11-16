@@ -11,7 +11,7 @@
     <title>Respiratory Cognitive Battery</title>
     <link rel="preconnect" href="https://unpkg.com" />
     <link rel="stylesheet" href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css" />
-    <link rel="stylesheet" href="styles.css?v=0.8.0" />
+    <link rel="stylesheet" href="styles.css?v=0.9.0" />
   </head>
   <body>
     <main id="setup-root" class="app-shell">
@@ -256,10 +256,27 @@
     </main>
 
     <main id="experiment-root" class="experiment-root" hidden></main>
+    <div id="session-controls" hidden><button id="pause-session" type="button" class="secondary-button">Pause session</button></div>
+    <section id="pause-overlay" class="pause-overlay" role="dialog" aria-modal="true" aria-labelledby="pause-heading" hidden>
+      <div class="ready-panel">
+        <h2 id="pause-heading">Session paused</h2>
+        <p>Tasks, timers, and video playback are paused. No responses are accepted.</p>
+        <div id="pause-actions">
+          <button id="resume-session" type="button" class="primary-button">Resume session</button>
+          <button id="request-end" type="button" class="secondary-button">End session early</button>
+        </div>
+        <div id="end-confirmation" hidden>
+          <h3>End this session?</h3><p>You cannot resume afterward. Data collected so far will remain available to download.</p>
+          <button id="cancel-end" type="button" class="secondary-button">Go back — stay paused</button>
+          <button id="confirm-end" type="button" class="primary-button">Yes, end session</button>
+        </div>
+      </div>
+    </section>
 
     <noscript>This experiment requires JavaScript.</noscript>
     <script src="https://unpkg.com/jspsych@8.3.0"></script>
-    <script src="nature-video.js?v=0.8.2"></script>
-    <script src="app.js?v=0.8.2"></script>
+    <script src="session-control.js?v=0.9.0"></script>
+    <script src="nature-video.js?v=0.9.0"></script>
+    <script src="app.js?v=0.9.0"></script>
   </body>
 </html>
